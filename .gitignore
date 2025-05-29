@@ -1,0 +1,72 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Distribution / packaging
+build/
+dist/
+*.egg-info/
+sdist/
+wheelhouse/ # Older pip artifact
+*.tar.gz
+*.zip
+*.whl
+MANIFEST
+
+.idea
+
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+.pytest_cache/
+# .hypothesis/ # If you use Hypothesis for testing
+
+# Jupyter Notebook (often used for experimentation)
+.ipynb_checkpoints
+# profile_default/ # Less common to ignore unless heavily customizing IPython locally
+# ipython_config.py # Usually committed if project-specific IPython config is intended
+
+# PEP 582; __pypackages__ directory
+__pypackages__/
+
+# Environments (Poetry will create .venv if configured, or manage elsewhere)
+.env
+.venv/
+venv/
+env/
+ENV/
+
+# Poetry
+# poetry.lock should be committed for libraries.
+
+# Ruff cache
+.ruff_cache/
+
+# IDEs and editors
+.idea/          # JetBrains IDEs (PyCharm, IntelliJ)
+.vscode/        # Visual Studio Code
+*.sublime-project
+*.sublime-workspace
+# nbproject/    # NetBeans (less common for Python-only projects)
+
+# OS generated files
+.DS_Store       # macOS
+Thumbs.db       # Windows
+ehthumbs.db     # Windows
+._* # macOS
+
+# Temporary files
+*.tmp
+*.bak
+*.swp
+*~

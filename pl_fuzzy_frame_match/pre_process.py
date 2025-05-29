@@ -20,7 +20,7 @@ def get_approx_uniqueness(lf: pl.LazyFrame) -> dict[str, int]:
     Raises:
         Exception: If the uniqueness calculation fails (empty result).
     """
-    uniqueness = lf.select(pl.all().approx_n_unique()).collect().to_dicts()
+    uniqueness: list[dict[str, int]] = lf.select(pl.all().approx_n_unique()).collect().to_dicts()
     if len(uniqueness) == 0:
         raise Exception("Approximate uniqueness calculation failed")
     return uniqueness[0]

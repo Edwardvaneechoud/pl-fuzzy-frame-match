@@ -1,16 +1,15 @@
-import sys
-import os
 from typing import List
 
 import polars as pl
 import pytest
-from .match_utils import generate_small_fuzzy_test_data_left, generate_small_fuzzy_test_data_right
+
+from pl_fuzzy_frame_match.models import FuzzyTypeLiteral
 from pl_fuzzy_frame_match.process import (
     calculate_fuzzy_score,
     calculate_and_parse_fuzzy,
     process_fuzzy_frames
 )
-from pl_fuzzy_frame_match.models import FuzzyTypeLiteral
+from .match_utils import generate_small_fuzzy_test_data_left, generate_small_fuzzy_test_data_right
 
 # Test configuration
 FUZZY_TYPES: List[FuzzyTypeLiteral] = [

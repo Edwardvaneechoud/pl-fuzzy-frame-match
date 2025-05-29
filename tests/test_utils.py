@@ -1,7 +1,6 @@
 import tempfile
 import os
-import uuid
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 import pytest
 import polars as pl
 from polars.exceptions import PanicException

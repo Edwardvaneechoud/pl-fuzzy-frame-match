@@ -6,14 +6,14 @@ on:
     paths:
       - 'docs/**'
       - 'pl_fuzzy_frame_match/**'
-      - 'README.md'
+      - 'readme.md'
       - 'pyproject.toml'
   pull_request:
     branches: [ main ]
     paths:
       - 'docs/**'
       - 'pl_fuzzy_frame_match/**'
-      - 'README.md'
+      - 'readme.md'
 
 env:
   POETRY_VERSION: 1.8.3

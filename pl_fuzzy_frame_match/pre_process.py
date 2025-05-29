@@ -3,8 +3,8 @@ from typing import List, Dict, Tuple
 
 import polars as pl
 
-from flowfile_worker.polars_fuzzy_match.models import FuzzyMapping
-from flowfile_worker.utils import collect_lazy_frame
+from .models import FuzzyMapping
+from ._utils import collect_lazy_frame
 
 
 def get_approx_uniqueness(lf: pl.LazyFrame) -> Dict[str, int]:
@@ -22,7 +22,7 @@ def get_approx_uniqueness(lf: pl.LazyFrame) -> Dict[str, int]:
     """
     uniqueness = lf.select(pl.all().approx_n_unique()).collect().to_dicts()
     if len(uniqueness) == 0:
-        raise Exception('Approximate uniqueness calculation failed')
+        raise Exception("Approximate uniqueness calculation failed")
     return uniqueness[0]
 
 
@@ -56,8 +56,14 @@ def calculate_df_len(df: pl.LazyFrame) -> int:
     return collect_lazy_frame(df.select(pl.len()))[0, 0]
 
 
-def fill_perc_unique_in_fuzzy_maps(left_df: pl.LazyFrame, right_df: pl.LazyFrame, fuzzy_maps: List[FuzzyMapping],
-                                   flowfile_logger: Logger, left_len: int, right_len: int) -> List[FuzzyMapping]:
+def fill_perc_unique_in_fuzzy_maps(
+    left_df: pl.LazyFrame,
+    right_df: pl.LazyFrame,
+    fuzzy_maps: List[FuzzyMapping],
+    logger: Logger,
+    left_len: int,
+    right_len: int,
+) -> List[FuzzyMapping]:
     """
     Calculate and set uniqueness percentages for all fuzzy mapping columns.
 
@@ -68,7 +74,7 @@ def fill_perc_unique_in_fuzzy_maps(left_df: pl.LazyFrame, right_df: pl.LazyFrame
         left_df (pl.LazyFrame): Left dataframe.
         right_df (pl.LazyFrame): Right dataframe.
         fuzzy_maps (List[FuzzyMapping]): List of fuzzy mappings between left and right columns.
-        flowfile_logger (Logger): Logger for information output.
+        logger (Logger): Logger for information output.
         left_len (int): Number of rows in the left dataframe.
         right_len (int): Number of rows in the right dataframe.
 
@@ -77,11 +83,12 @@ def fill_perc_unique_in_fuzzy_maps(left_df: pl.LazyFrame, right_df: pl.LazyFrame
     """
     left_unique_values = get_approx_uniqueness(left_df.select(fuzzy_map.left_col for fuzzy_map in fuzzy_maps))
     right_unique_values = get_approx_uniqueness(right_df.select(fuzzy_map.right_col for fuzzy_map in fuzzy_maps))
-    flowfile_logger.info(f'Left unique values: {left_unique_values}')
-    flowfile_logger.info(f'Right unique values: {right_unique_values}')
+    logger.info(f"Left unique values: {left_unique_values}")
+    logger.info(f"Right unique values: {right_unique_values}")
     for fuzzy_map in fuzzy_maps:
-        fuzzy_map.perc_unique = calculate_uniqueness(left_unique_values[fuzzy_map.left_col] / left_len,
-                                                     right_unique_values[fuzzy_map.right_col] / right_len)
+        fuzzy_map.perc_unique = calculate_uniqueness(
+            left_unique_values[fuzzy_map.left_col] / left_len, right_unique_values[fuzzy_map.right_col] / right_len
+        )
     return fuzzy_maps
 
 
@@ -131,8 +138,9 @@ def determine_need_for_aggregation(uniqueness_rate: float, cartesian_join_number
     return uniqueness_rate < 1.2 and cartesian_join_number > 1_000_000
 
 
-def aggregate_output(left_df: pl.LazyFrame, right_df: pl.LazyFrame,
-                     fuzzy_maps: List[FuzzyMapping]) -> Tuple[pl.LazyFrame, pl.LazyFrame]:
+def aggregate_output(
+    left_df: pl.LazyFrame, right_df: pl.LazyFrame, fuzzy_maps: List[FuzzyMapping]
+) -> Tuple[pl.LazyFrame, pl.LazyFrame]:
     """
     Deduplicate the dataframes based on the fuzzy mapping columns.
 
@@ -152,25 +160,26 @@ def aggregate_output(left_df: pl.LazyFrame, right_df: pl.LazyFrame,
     return left_df, right_df
 
 
-def report_on_order_of_fuzzy_maps(fuzzy_maps: List[FuzzyMapping], flowfile_logger: Logger) -> None:
+def report_on_order_of_fuzzy_maps(fuzzy_maps: List[FuzzyMapping], logger: Logger) -> None:
     """
     Log the order of fuzzy mappings based on uniqueness.
     Parameters
     ----------
     fuzzy_maps: List[FuzzyMapping]
-    flowfile_logger: Logger
+    logger: Logger
 
     -------
     """
-    flowfile_logger.info('Fuzzy mappings sorted by uniqueness')
+    logger.info("Fuzzy mappings sorted by uniqueness")
     for i, fuzzy_map in enumerate(fuzzy_maps):
-        flowfile_logger.info(f'{i}. Fuzzy mapping: {fuzzy_map.left_col} -> {fuzzy_map.right_col} '
-                             f'Uniqueness: {fuzzy_map.perc_unique}')
+        logger.info(
+            f"{i}. Fuzzy mapping: {fuzzy_map.left_col} -> {fuzzy_map.right_col} " f"Uniqueness: {fuzzy_map.perc_unique}"
+        )
 
 
-def pre_process_for_fuzzy_matching(left_df: pl.LazyFrame, right_df: pl.LazyFrame,
-                                   fuzzy_maps: List[FuzzyMapping],
-                                   flowfile_logger: Logger) -> Tuple[pl.LazyFrame, pl.LazyFrame, List[FuzzyMapping]]:
+def pre_process_for_fuzzy_matching(
+    left_df: pl.LazyFrame, right_df: pl.LazyFrame, fuzzy_maps: List[FuzzyMapping], logger: Logger
+) -> Tuple[pl.LazyFrame, pl.LazyFrame, List[FuzzyMapping]]:
     """
     Preprocess dataframes and fuzzy mappings for optimal fuzzy matching.
 
@@ -185,7 +194,7 @@ def pre_process_for_fuzzy_matching(left_df: pl.LazyFrame, right_df: pl.LazyFrame
         left_df (pl.LazyFrame): Left dataframe.
         right_df (pl.LazyFrame): Right dataframe.
         fuzzy_maps (List[FuzzyMapping]): List of fuzzy mappings between columns.
-        flowfile_logger (Logger): Logger for information output.
+        logger (Logger): Logger for information output.
 
     Returns:
         Tuple[pl.LazyFrame, pl.LazyFrame, List[FuzzyMapping]]:
@@ -193,21 +202,22 @@ def pre_process_for_fuzzy_matching(left_df: pl.LazyFrame, right_df: pl.LazyFrame
             - Potentially modified right dataframe
             - Sorted and updated fuzzy mappings
     """
-    flowfile_logger.info('Optimizing data and settings for fuzzy matching')
+    logger.info("Optimizing data and settings for fuzzy matching")
     left_df_len = calculate_df_len(left_df)
     right_df_len = calculate_df_len(right_df)
     if left_df_len == 0 or right_df_len == 0:
         return left_df, right_df, fuzzy_maps
-    fuzzy_maps = fill_perc_unique_in_fuzzy_maps(left_df, right_df, fuzzy_maps, flowfile_logger, left_df_len,
-                                                right_df_len)
+    fuzzy_maps = fill_perc_unique_in_fuzzy_maps(left_df, right_df, fuzzy_maps, logger, left_df_len, right_df_len)
     fuzzy_maps = determine_order_of_fuzzy_maps(fuzzy_maps)
-    report_on_order_of_fuzzy_maps(fuzzy_maps, flowfile_logger)
+    report_on_order_of_fuzzy_maps(fuzzy_maps, logger)
 
     uniqueness_rate = calculate_uniqueness_rate(fuzzy_maps)
-    flowfile_logger.info(f'Uniqueness rate: {uniqueness_rate}')
+    logger.info(f"Uniqueness rate: {uniqueness_rate}")
     if determine_need_for_aggregation(uniqueness_rate, left_df_len * right_df_len):
-        flowfile_logger.warning('The join fields are not unique enough, resulting in many duplicates, '
-                                'therefore removing duplicates on the join field')
+        logger.warning(
+            "The join fields are not unique enough, resulting in many duplicates, "
+            "therefore removing duplicates on the join field"
+        )
         left_df, right_df = aggregate_output(left_df, right_df, fuzzy_maps)
-    flowfile_logger.info('Data and settings optimized for fuzzy matching')
+    logger.info("Data and settings optimized for fuzzy matching")
     return left_df, right_df, fuzzy_maps

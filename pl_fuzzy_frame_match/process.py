@@ -1,12 +1,16 @@
 import polars as pl
 import polars_distance as pld
-from flowfile_worker.polars_fuzzy_match.utils import cache_polars_frame_to_temp
-from flowfile_worker.utils import collect_lazy_frame
-from flowfile_worker.polars_fuzzy_match.models import FuzzyTypeLiteral
+from ._utils import cache_polars_frame_to_temp, collect_lazy_frame
+from .models import FuzzyTypeLiteral
 
 
-def calculate_fuzzy_score(mapping_table: pl.LazyFrame, left_col_name: str, right_col_name: str,
-                          fuzzy_method: FuzzyTypeLiteral, th_score: float) -> pl.LazyFrame:
+def calculate_fuzzy_score(
+    mapping_table: pl.LazyFrame,
+    left_col_name: str,
+    right_col_name: str,
+    fuzzy_method: FuzzyTypeLiteral,
+    th_score: float,
+) -> pl.LazyFrame:
     """
     Calculate fuzzy matching scores between columns in a LazyFrame.
 
@@ -20,19 +24,25 @@ def calculate_fuzzy_score(mapping_table: pl.LazyFrame, left_col_name: str, right
     Returns:
         A LazyFrame with fuzzy matching scores
     """
-    mapping_table = mapping_table.with_columns(pl.col(left_col_name).str.to_lowercase().alias('left'),
-                                               pl.col(right_col_name).str.to_lowercase().alias('right'))
-    dist_col = pld.DistancePairWiseString(pl.col('left'))
+    mapping_table = mapping_table.with_columns(
+        pl.col(left_col_name).str.to_lowercase().alias("left"), pl.col(right_col_name).str.to_lowercase().alias("right")
+    )
+    dist_col = pld.DistancePairWiseString(pl.col("left"))
     if fuzzy_method in ("jaro_winkler"):
-        fm_method = getattr(dist_col, fuzzy_method)(pl.col('right')).alias('s')
+        fm_method = getattr(dist_col, fuzzy_method)(pl.col("right")).alias("s")
     else:
-        fm_method = getattr(dist_col, fuzzy_method)(pl.col('right'), normalized=True).alias('s')
-    return (mapping_table.with_columns(fm_method).drop(['left', 'right']).filter(pl.col('s') <= th_score).
-            with_columns((1-pl.col('s')).alias('s')))
+        fm_method = getattr(dist_col, fuzzy_method)(pl.col("right"), normalized=True).alias("s")
+    return (
+        mapping_table.with_columns(fm_method)
+        .drop(["left", "right"])
+        .filter(pl.col("s") <= th_score)
+        .with_columns((1 - pl.col("s")).alias("s"))
+    )
 
 
-def process_fuzzy_frames(left_df: pl.LazyFrame, right_df: pl.LazyFrame, left_col_name: str, right_col_name: str,
-                         temp_dir_ref: str):
+def process_fuzzy_frames(
+    left_df: pl.LazyFrame, right_df: pl.LazyFrame, left_col_name: str, right_col_name: str, temp_dir_ref: str
+):
     """
     Process left and right data frames to create fuzzy frames,
     cache them temporarily, and adjust based on their lengths.
@@ -48,10 +58,13 @@ def process_fuzzy_frames(left_df: pl.LazyFrame, right_df: pl.LazyFrame, left_col
     """
 
     # Process left and right data frames
-    left_fuzzy_frame = cache_polars_frame_to_temp(left_df.group_by(left_col_name).agg('__left_index').
-                                                  filter(pl.col(left_col_name).is_not_null()), temp_dir_ref)
-    right_fuzzy_frame = cache_polars_frame_to_temp(right_df.group_by(right_col_name).agg('__right_index').
-                                                   filter(pl.col(right_col_name).is_not_null()), temp_dir_ref)
+    left_fuzzy_frame = cache_polars_frame_to_temp(
+        left_df.group_by(left_col_name).agg("__left_index").filter(pl.col(left_col_name).is_not_null()), temp_dir_ref
+    )
+    right_fuzzy_frame = cache_polars_frame_to_temp(
+        right_df.group_by(right_col_name).agg("__right_index").filter(pl.col(right_col_name).is_not_null()),
+        temp_dir_ref,
+    )
     # Calculate lengths of fuzzy frames
     len_left_df = collect_lazy_frame(left_fuzzy_frame.select(pl.len()))[0, 0]
     len_right_df = collect_lazy_frame(right_fuzzy_frame.select(pl.len()))[0, 0]
@@ -66,8 +79,13 @@ def process_fuzzy_frames(left_df: pl.LazyFrame, right_df: pl.LazyFrame, left_col
     return left_fuzzy_frame, right_fuzzy_frame, left_col_name, right_col_name, len_left_df, len_right_df
 
 
-def calculate_and_parse_fuzzy(mapping_table: pl.LazyFrame, left_col_name: str, right_col_name: str,
-                              fuzzy_method: FuzzyTypeLiteral, th_score: float) -> pl.LazyFrame:
+def calculate_and_parse_fuzzy(
+    mapping_table: pl.LazyFrame,
+    left_col_name: str,
+    right_col_name: str,
+    fuzzy_method: FuzzyTypeLiteral,
+    th_score: float,
+) -> pl.LazyFrame:
     """
     Calculate fuzzy scores and parse/explode the results for further processing.
 
@@ -81,6 +99,9 @@ def calculate_and_parse_fuzzy(mapping_table: pl.LazyFrame, left_col_name: str, r
     Returns:
         A LazyFrame with exploded indices and fuzzy scores
     """
-    return calculate_fuzzy_score(mapping_table, left_col_name, right_col_name, fuzzy_method, th_score).select(
-        pl.col('s'), pl.col('__left_index'), pl.col('__right_index')).explode(pl.col('__left_index')).explode(
-        pl.col('__right_index'))
+    return (
+        calculate_fuzzy_score(mapping_table, left_col_name, right_col_name, fuzzy_method, th_score)
+        .select(pl.col("s"), pl.col("__left_index"), pl.col("__right_index"))
+        .explode(pl.col("__left_index"))
+        .explode(pl.col("__right_index"))
+    )

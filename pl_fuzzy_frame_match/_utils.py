@@ -14,10 +14,9 @@ def collect_lazy_frame(lf: pl.LazyFrame) -> pl.DataFrame:
         return lf.collect(engine="auto")
 
 
-def write_polars_frame(_df: pl.LazyFrame | pl.DataFrame, path: str,
-                       estimated_size: int = 0):
+def write_polars_frame(_df: pl.LazyFrame | pl.DataFrame, path: str, estimated_size: int = 0):
     is_lazy = isinstance(_df, pl.LazyFrame)
-    logger.info('Caching data frame')
+    logger.info("Caching data frame")
     if is_lazy:
         if estimated_size > 0:
             fit_memory = estimated_size / 1024 / 1000 / 1000 < 8
@@ -27,7 +26,7 @@ def write_polars_frame(_df: pl.LazyFrame | pl.DataFrame, path: str,
 
         if is_lazy:
             logger.info("Writing in memory efficient mode")
-            write_method = getattr(_df, 'sink_ipc')
+            write_method = getattr(_df, "sink_ipc")
             try:
                 write_method(path)
                 return True
@@ -41,19 +40,19 @@ def write_polars_frame(_df: pl.LazyFrame | pl.DataFrame, path: str,
         if is_lazy:
             _df = collect_lazy_frame(_df)
     try:
-        write_method = getattr(_df, 'write_ipc')
+        write_method = getattr(_df, "write_ipc")
         write_method(path)
         return True
     except Exception as e:
-        print('error', e)
+        print("error", e)
         return False
 
 
 def cache_polars_frame_to_temp(_df: pl.LazyFrame | pl.DataFrame, tempdir: str = None) -> pl.LazyFrame:
-    path = f'{tempdir}{os.sep}{uuid.uuid4()}'
+    path = f"{tempdir}{os.sep}{uuid.uuid4()}"
     result = write_polars_frame(_df, path)
     if result:
         df = pl.read_ipc(path)
         return df.lazy()
     else:
-        raise Exception('Could not cache the data')
+        raise Exception("Could not cache the data")

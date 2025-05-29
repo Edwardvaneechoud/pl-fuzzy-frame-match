@@ -28,7 +28,11 @@ packages = [{include = "pl_fuzzy_frame_match"}]
 
 [tool.poetry.dependencies]
 python = "^3.10"
-polars = ">=1.8.2,<2.0.0"
+polars = [
+    { version = ">=1.8.2, <=1.25.2", markers = "sys_platform == 'win32'" }, # For Windows, max version 1.25.2
+    { version = ">=1.8.2, <2.0.0", markers = "sys_platform != 'win32'" } # For non-Windows, allows 1.26.0 up to (but not including) 2.0.0
+                                                                      # Or whatever your desired range is for other OSes
+]
 polars-distance = "~0.4.3"
 polars-simed = "^0.3.4"
 

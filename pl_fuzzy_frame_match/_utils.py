@@ -1,11 +1,10 @@
 import logging
 import os
 import uuid
+from typing import cast
 
 import polars as pl
 from polars.exceptions import PanicException
-
-from typing import cast
 
 logger = logging.getLogger(__name__)
 

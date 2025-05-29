@@ -50,13 +50,17 @@ jobs:
 
       - name: Install dependencies
         run: poetry install --no-interaction --no-ansi
+        shell: bash # Explicitly use bash shell
 
       - name: Run pre-commit checks
         if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.10'
         run: poetry run pre-commit run --all-files
+        # No shell change needed, as it's ubuntu-only and default is bash.
+        # If it were to run on Windows and fail, add shell: bash here too.
 
       - name: Run tests with coverage
         run: poetry run pytest --cov=pl_fuzzy_frame_match --cov-report=xml --cov-report=term-missing -v
+        shell: bash # Explicitly use bash shell
 
       - name: Upload coverage to Codecov
         if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.10'
@@ -86,15 +90,20 @@ jobs:
 
       - name: Install dependencies
         run: poetry install --no-interaction --no-ansi
+        # Default shell on Ubuntu is bash, so no change strictly needed here,
+        # but shell: bash can be added for consistency if desired.
 
       - name: Run Ruff linting
         run: poetry run ruff check .
+        # Default shell on Ubuntu is bash.
 
       - name: Run Ruff formatting check
         run: poetry run ruff format --check .
+        # Default shell on Ubuntu is bash.
 
       - name: Run MyPy type checking
         run: poetry run mypy pl_fuzzy_frame_match/
+        # Default shell on Ubuntu is bash.
 
   build:
     runs-on: ubuntu-latest
@@ -113,6 +122,7 @@ jobs:
 
       - name: Build package
         run: poetry build
+        # Default shell on Ubuntu is bash.
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
@@ -127,7 +137,7 @@ jobs:
     runs-on: ubuntu-latest
     environment: pypi
     permissions:
-      id-token: write  # For trusted publishing
+      id-token: write # For trusted publishing
 
     steps:
       - name: Download build artifacts

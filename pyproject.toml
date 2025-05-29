@@ -31,7 +31,6 @@ python = "^3.10"
 polars = ">=1.8.2,<2.0.0"
 polars-distance = "~0.4.3"
 polars-simed = "^0.3.4"
-tqdm = "^4.66.0"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.0.0"
@@ -135,7 +134,6 @@ module = [
     "polars.*",
     "polars_distance.*",
     "polars_simed.*",
-    "tqdm.*",
 ]
 ignore_missing_imports = true
 

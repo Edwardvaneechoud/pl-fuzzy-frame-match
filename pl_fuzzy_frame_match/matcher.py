@@ -195,7 +195,7 @@ def cross_join_filter_existing_fuzzy_results(
     existing_matches: pl.LazyFrame,
     left_col_name: str,
     right_col_name: str,
-):
+) -> pl.LazyFrame:
     """
     Process and filter fuzzy matching results by joining dataframes using existing match indices.
 
@@ -357,24 +357,23 @@ def unique_df_large(_df: pl.DataFrame | pl.LazyFrame, cols: list[str] | None = N
     """
     if isinstance(_df, pl.LazyFrame):
         _df = collect_lazy_frame(_df)
-    from tqdm import tqdm
 
     partition_col = cols[0] if cols is not None else _df.columns[0]
     other_cols = cols[1:] if cols is not None else _df.columns[1:]
     partitioned_df = _df.partition_by(partition_col)
-    df = pl.concat([partition.unique(other_cols) for partition in tqdm(partitioned_df)])
+    df = pl.concat([partition.unique(other_cols) for partition in partitioned_df])
     del partitioned_df, _df
     return df
 
 
-def combine_matches(matching_dfs: list[pl.LazyFrame]):
+def combine_matches(matching_dfs: list[pl.LazyFrame]) -> pl.LazyFrame:
     all_matching_indexes = matching_dfs[-1].select("__left_index", "__right_index")
     for matching_df in matching_dfs:
         all_matching_indexes = all_matching_indexes.join(matching_df, on=["__left_index", "__right_index"])
     return all_matching_indexes
 
 
-def add_index_column(df: pl.LazyFrame, column_name: str, tempdir: str):
+def add_index_column(df: pl.LazyFrame, column_name: str, tempdir: str) -> pl.LazyFrame:
     """
     Add a row index column to a dataframe and cache it to temporary storage.
 

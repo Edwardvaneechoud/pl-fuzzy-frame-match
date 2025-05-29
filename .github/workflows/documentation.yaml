@@ -1,0 +1,110 @@
+name: Documentation
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'docs/**'
+      - 'pl_fuzzy_frame_match/**'
+      - 'README.md'
+      - 'pyproject.toml'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'docs/**'
+      - 'pl_fuzzy_frame_match/**'
+      - 'README.md'
+
+env:
+  POETRY_VERSION: 1.8.3
+  PYTHON_VERSION: "3.10"
+
+jobs:
+  # Build documentation
+  build-docs:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+
+    - name: Install Poetry
+      uses: snok/install-poetry@v1
+      with:
+        version: ${{ env.POETRY_VERSION }}
+        virtualenvs-create: true
+        virtualenvs-in-project: true
+
+    - name: Cache Poetry dependencies
+      uses: actions/cache@v3
+      with:
+        path: .venv
+        key: venv-${{ runner.os }}-${{ env.PYTHON_VERSION }}-${{ hashFiles('**/poetry.lock') }}
+
+    - name: Install dependencies including docs
+      run: poetry install --with docs --no-interaction --no-ansi
+
+    - name: Create docs directory if it doesn't exist
+      run: |
+        mkdir -p docs/source
+        if [ ! -f docs/source/conf.py ]; then
+          poetry run sphinx-quickstart -q -p "pl-fuzzy-frame-match" -a "Edward van Eechoud" -v "0.1.0" --ext-autodoc --ext-viewcode --makefile --no-batchfile docs/source
+        fi
+
+    - name: Build documentation
+      run: |
+        cd docs
+        poetry run sphinx-build -b html source build
+
+    - name: Upload documentation artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: documentation
+        path: docs/build/
+
+  # Deploy documentation to GitHub Pages
+  deploy-docs:
+    needs: build-docs
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+    - name: Download documentation artifacts
+      uses: actions/download-artifact@v3
+      with:
+        name: documentation
+        path: docs/
+
+    - name: Setup Pages
+      uses: actions/configure-pages@v3
+
+    - name: Upload to GitHub Pages
+      uses: actions/upload-pages-artifact@v2
+      with:
+        path: docs/
+
+    - name: Deploy to GitHub Pages
+      id: deployment
+      uses: actions/deploy-pages@v2
+
+  # Check documentation links
+  check-links:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Check README links
+      uses: gaurav-nelson/github-action-markdown-link-check@v1
+      with:
+        file-path: './README.md'
+        config-file: '.github/markdown-link-check-config.json'
+        continue-on-error: true

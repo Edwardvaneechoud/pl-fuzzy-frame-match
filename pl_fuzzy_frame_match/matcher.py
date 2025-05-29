@@ -9,7 +9,6 @@ from ._utils import cache_polars_frame_to_temp, collect_lazy_frame
 from .models import FuzzyMapping
 from .pre_process import pre_process_for_fuzzy_matching
 from .process import calculate_and_parse_fuzzy, process_fuzzy_frames
-
 HAS_POLARS_SIM = True
 
 
@@ -49,7 +48,7 @@ def ensure_left_is_larger(
     return left_df, right_df, left_col_name, right_col_name
 
 
-def split_dataframe(df: pl.DataFrame, max_chunk_size: int = 500_000) -> list[pl.DataFrame]:
+def split_dataframe(df: pl.DataFrame, max_chunk_size: int = 50_000) -> list[pl.DataFrame]:
     """
     Split a large Polars DataFrame into smaller chunks for memory-efficient processing.
 
@@ -121,9 +120,6 @@ def cross_join_large_files(
         pl.LazyFrame: A LazyFrame containing approximate matches between the datasets.
                      Returns an empty DataFrame with null schema if no matches found.
 
-    Raises:
-        Exception: If polars-simed library is not available (HAS_POLARS_SIM is False).
-
     Notes:
         - Requires polars-simed library for approximate matching functionality
         - Automatically ensures larger dataframe is used as the left frame for optimization
@@ -132,8 +128,6 @@ def cross_join_large_files(
         - Combines results from all chunks into a single output
         - Falls back to empty result if processing fails rather than crashing
     """
-    if not HAS_POLARS_SIM:
-        raise Exception("The polars-sim library is required to perform this operation.")
 
     left_df = collect_lazy_frame(left_fuzzy_frame)
     right_df = collect_lazy_frame(right_fuzzy_frame)
@@ -141,10 +135,9 @@ def cross_join_large_files(
     left_df, right_df, left_col_name, right_col_name = ensure_left_is_larger(
         left_df, right_df, left_col_name, right_col_name
     )
-    left_chunks = split_dataframe(left_df, max_chunk_size=500_000)  # Reduced chunk size
+    left_chunks = split_dataframe(left_df, max_chunk_size=10_000)  # Reduced chunk size
     logger.info(f"Splitting left dataframe into {len(left_chunks)} chunks.")
     df_matches = []
-
     # Process each chunk combination with error handling
     for i, left_chunk in enumerate(left_chunks):
         chunk_matches = ps.join_sim(
@@ -152,7 +145,7 @@ def cross_join_large_files(
             right=right_df,
             left_on=left_col_name,
             right_on=right_col_name,
-            top_n=100,
+            top_n=500,
             add_similarity=False,
         )
         logger.info(f"Processed chunk {int(i)} with {len(chunk_matches)} matches.")
@@ -250,6 +243,7 @@ def cross_join_no_existing_fuzzy_results(
     right_col_name: str,
     temp_dir_ref: str,
     logger: Logger,
+    use_appr_nearest_neighbor: bool | None = None
 ) -> pl.LazyFrame:
     """
     Generate fuzzy matching results by performing a cross join between dataframes.
@@ -271,7 +265,10 @@ def cross_join_no_existing_fuzzy_results(
     temp_dir_ref : str
         Reference to a temporary directory where intermediate results can be stored
         during processing of large dataframes.
-
+    use_appr_nearest_neighbor : Optional[bool]
+        - If True, forces the use of approximate nearest neighbor join (polars_simed) if available.
+        - If False, forces the use of a standard cross join.
+        - If None (default), an automatic selection based on cartesian_size is done.
     Returns:
     --------
     pl.LazyFrame
@@ -304,11 +301,11 @@ def cross_join_no_existing_fuzzy_results(
         )
     )
     cartesian_size = len_left_df * len_right_df
-    max_size = 100_000_000_000_000 if HAS_POLARS_SIM else 10_000_000
+    max_size = 100_000_000_000_000
     if cartesian_size > max_size:
         logger.error(f"The cartesian product of the two dataframes is too large to process: {cartesian_size}")
         raise Exception("The cartesian product of the two dataframes is too large to process.")
-    if cartesian_size > 100_000_000:
+    if (cartesian_size > 100_000_000 and use_appr_nearest_neighbor is None) or  use_appr_nearest_neighbor:
         logger.info("Performing approximate fuzzy match for large dataframes to reduce memory usage.")
         cross_join_frame = cross_join_large_files(
             left_fuzzy_frame,
@@ -407,6 +404,7 @@ def process_fuzzy_mapping(
     i: int,
     logger: Logger,
     existing_number_of_matches: int | None = None,
+    use_appr_nearest_neighbor_for_new_matches: bool | None = None
 ) -> tuple[pl.LazyFrame, int | None]:
     """
     Process a single fuzzy mapping to generate matching dataframes.
@@ -420,7 +418,7 @@ def process_fuzzy_mapping(
         i: Index of the current fuzzy mapping
         logger: Logger instance for progress tracking
         existing_number_of_matches: Number of existing matches (if available)
-
+        use_appr_nearest_neighbor_for_new_matches: Optimize for larger dataframes
     Returns:
         tuple[pl.LazyFrame, int]: The final matching dataframe and the number of matches
     """
@@ -444,6 +442,7 @@ def process_fuzzy_mapping(
             right_col_name=fuzzy_map.right_col,
             temp_dir_ref=local_temp_dir_ref,
             logger=logger,
+            use_appr_nearest_neighbor=use_appr_nearest_neighbor_for_new_matches,
         )
 
     # Calculate fuzzy match scores
@@ -472,7 +471,44 @@ def perform_all_fuzzy_matches(
     fuzzy_maps: list[FuzzyMapping],
     logger: Logger,
     local_temp_dir_ref: str,
+    use_appr_nearest_neighbor_for_new_matches: bool | None = None
 ) -> list[pl.LazyFrame]:
+    """
+    Iteratively processes a list of fuzzy mapping configurations to find matches between two dataframes.
+
+    For each fuzzy mapping, this function computes potential matches. If multiple fuzzy maps
+    are provided, the matches from one mapping can be used as a basis for the next,
+    progressively filtering or expanding the set of matches. This allows for a multi-pass
+    fuzzy matching strategy where different columns or criteria are applied sequentially.
+
+    Args:
+        left_df (pl.LazyFrame): The left dataframe, prepared with an index column (e.g., '__left_index').
+        right_df (pl.LazyFrame): The right dataframe, prepared with an index column (e.g., '__right_index').
+        fuzzy_maps (list[models.FuzzyMapping]): A list of fuzzy mapping configurations to apply.
+                                               Each configuration specifies the columns to compare,
+                                               the fuzzy matching method, and thresholds.
+        logger (Logger): Logger instance for recording progress and debugging information.
+        local_temp_dir_ref (str): Path to a temporary directory for caching intermediate
+                                  dataframes during processing. This helps manage memory
+                                  for large datasets.
+        use_appr_nearest_neighbor_for_new_matches (Optional[bool], optional):
+            Controls the join strategy for generating initial candidate pairs when no
+            `existing_matches` are provided to `process_fuzzy_mapping`.
+            - If True, forces the use of approximate nearest neighbor join (polars_simed).
+            - If False, forces the use of a standard cross join.
+            - If None (default), an automatic selection based on data size and polars_simed
+              availability occurs within `cross_join_no_existing_fuzzy_results`.
+            Defaults to None.
+
+    Returns:
+        list[pl.LazyFrame]: A list of Polars LazyFrames. Each LazyFrame in the list
+                            represents the matching results after a `process_fuzzy_mapping`
+                            step. The final LazyFrame in the list contains the cumulative
+                            matches after all fuzzy maps have been processed. Each frame
+                            typically includes index columns ('__left_index', '__right_index')
+                            and a score column (e.g., 'fuzzy_score_i').
+    """
+
     matching_dfs = []
     existing_matches = None
     existing_number_of_matches = None
@@ -486,14 +522,18 @@ def perform_all_fuzzy_matches(
             i=i,
             logger=logger,
             existing_number_of_matches=existing_number_of_matches,
+            use_appr_nearest_neighbor_for_new_matches=use_appr_nearest_neighbor_for_new_matches
         )
         matching_dfs.append(existing_matches)
     return matching_dfs
 
 
 def fuzzy_match_dfs(
-    left_df: pl.LazyFrame, right_df: pl.LazyFrame, fuzzy_maps: list[FuzzyMapping], logger: Logger
-) -> pl.DataFrame:
+        left_df: pl.LazyFrame,
+        right_df: pl.LazyFrame,
+        fuzzy_maps: list[FuzzyMapping],
+        logger: Logger,
+        use_appr_nearest_neighbor_for_new_matches: bool | None = None) -> pl.DataFrame:
     """
     Perform fuzzy matching between two dataframes using multiple fuzzy mapping configurations.
 
@@ -502,7 +542,7 @@ def fuzzy_match_dfs(
         right_df: Right dataframe to be matched
         fuzzy_maps: list of fuzzy mapping configurations
         logger: Logger instance for tracking progress
-
+        use_appr_nearest_neighbor_for_new_matches: Controls join strategy for initial matches (see cross_join_no_existing_fuzzy_results).
     Returns:
         pl.DataFrame: The final matched dataframe with all fuzzy scores
     """
@@ -516,7 +556,8 @@ def fuzzy_match_dfs(
     left_df = add_index_column(left_df, "__left_index", local_temp_dir_ref)
     right_df = add_index_column(right_df, "__right_index", local_temp_dir_ref)
 
-    matching_dfs = perform_all_fuzzy_matches(left_df, right_df, fuzzy_maps, logger, local_temp_dir_ref)
+    matching_dfs = perform_all_fuzzy_matches(left_df, right_df, fuzzy_maps, logger, local_temp_dir_ref,
+                                             use_appr_nearest_neighbor_for_new_matches)
 
     # Combine all matches
     if len(matching_dfs) > 1:
@@ -534,7 +575,6 @@ def fuzzy_match_dfs(
         .drop("__right_index", "__left_index")
     )
 
-    # Clean up temporary files
     logger.info("Cleaning up temporary files")
     local_temp_dir.cleanup()
 

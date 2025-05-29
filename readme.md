@@ -7,7 +7,7 @@ High-performance fuzzy matching for Polars DataFrames that intelligently combine
 This library automatically selects the best matching strategy based on your data:
 
 - **Small datasets (< 100M comparisons)**: Uses exact fuzzy matching with full cross-join
-- **Large datasets (100M - 100B comparisons)**: Automatically switches to **approximate nearest neighbor joins** using `polars-simed`
+- **Large datasets (≥ 100M comparisons)**: Automatically switches to **approximate nearest neighbor joins** using `polars-simed`
 - **Intelligent optimization**: Pre-filters candidates using approximate methods, then applies exact fuzzy scoring
 
 This hybrid approach means you get:
@@ -39,16 +39,23 @@ poetry add pl-fuzzy-frame-match
 
 ## Performance Benchmarks
 
-Performance comparison on commodity hardware (16GB RAM, 8 cores):
+Performance comparison on commodity hardware (M3 Mac, 36GB RAM):
 
-| Dataset Size | Traditional Fuzzy | pl-fuzzy-frame-match | Speedup |
-|--------------|------------------|---------------------|---------|
-| 1K × 1K | 0.8s | 0.8s | 1x |
-| 10K × 10K | 45s | 12s | 3.75x |
-| 100K × 100K | 🔥 OOM | 3.5 min | ∞ |
-| 1M × 1M | 🔥 OOM | 28 min* | ∞ |
+| Dataset Size | Cartesian Product | Standard Cross Join | Automatic Selection | Speedup |
+|--------------|------------------|-------------------|-------------------|---------|
+| 500 × 400 | 200K | 0.04s | 0.03s | 1.3x |
+| 3K × 2K | 6M | 0.39s | 0.39s | 1x |
+| 10K × 8K | 80M | 18.67s | 18.79s | 1x |
+| 15K × 10K | 150M | 40.82s | 1.45s | **28x** |
+| 40K × 30K | 1.2B | 363.50s | 4.75s | **76x** |
+| 400K × 10K | 4B | Skipped* | 34.52s | **∞** |
 
-*With `polars-simed` installed for approximate matching
+*Skipped due to prohibitive runtime
+
+**Key Observations:**
+- **Small to Medium datasets** (< 100M): Automatic selection uses standard cross join for optimal speed
+- **Large datasets** (≥ 100M): Automatic selection switches to approximate matching for massive speedups
+- **Memory efficiency**: Can handle billions of potential comparisons without running out of memory
 
 ## Quick Start
 
@@ -131,7 +138,7 @@ The library intelligently combines two approaches based on your data size:
 3. **Exact Scoring**: Calculates precise similarity scores using your chosen algorithm
 4. **Filtering**: Returns only matches above the threshold
 
-### For Large Datasets (> 100M potential matches)
+### For Large Datasets (≥ 100M potential matches)
 1. **Approximate Candidate Selection**: Uses `polars-simed` to quickly find likely matches
 2. **Chunked Processing**: Processes large datasets in memory-efficient chunks
 3. **Reduced Comparisons**: Only scores the most promising pairs instead of all combinations
@@ -140,7 +147,7 @@ The library intelligently combines two approaches based on your data size:
 ### The Magic: Automatic Strategy Selection
 ```python
 # The library automatically determines the best approach:
-if cartesian_product_size > 100_000_000 and has_polars_simed:
+if cartesian_product_size >= 100_000_000 and has_polars_simed:
     # Use approximate join for initial candidate selection
     # This reduces a 1B comparison problem to ~1M comparisons
     use_approximate_matching()

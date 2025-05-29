@@ -79,8 +79,7 @@ def write_polars_frame(_df: pl.LazyFrame | pl.DataFrame, path: str, estimated_si
             _df = collect_lazy_frame(cast(pl.LazyFrame, _df))
     try:
         df_to_write = cast(pl.DataFrame, _df)
-        write_method = df_to_write.write_ipc  # type: ignore[assignment]
-        write_method(path)
+        df_to_write.write_ipc(path)
         return True
     except Exception as e:
         print("error", e)

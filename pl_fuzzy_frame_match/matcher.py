@@ -9,7 +9,6 @@ from ._utils import cache_polars_frame_to_temp, collect_lazy_frame
 from .models import FuzzyMapping
 from .pre_process import pre_process_for_fuzzy_matching
 from .process import calculate_and_parse_fuzzy, process_fuzzy_frames
-HAS_POLARS_SIM = True
 
 
 def ensure_left_is_larger(

@@ -1,13 +1,12 @@
 from logging import Logger
-from typing import List, Dict, Tuple
 
 import polars as pl
 
-from .models import FuzzyMapping
 from ._utils import collect_lazy_frame
+from .models import FuzzyMapping
 
 
-def get_approx_uniqueness(lf: pl.LazyFrame) -> Dict[str, int]:
+def get_approx_uniqueness(lf: pl.LazyFrame) -> dict[str, int]:
     """
     Calculate the approximate number of unique values for each column in a LazyFrame.
 
@@ -15,7 +14,7 @@ def get_approx_uniqueness(lf: pl.LazyFrame) -> Dict[str, int]:
         lf (pl.LazyFrame): Input LazyFrame to analyze.
 
     Returns:
-        Dict[str, int]: Dictionary mapping column names to their approximate unique value counts.
+        dict[str, int]: Dictionary mapping column names to their approximate unique value counts.
 
     Raises:
         Exception: If the uniqueness calculation fails (empty result).
@@ -68,11 +67,11 @@ def calculate_df_len(df: pl.LazyFrame) -> int:
 def fill_perc_unique_in_fuzzy_maps(
     left_df: pl.LazyFrame,
     right_df: pl.LazyFrame,
-    fuzzy_maps: List[FuzzyMapping],
+    fuzzy_maps: list[FuzzyMapping],
     logger: Logger,
     left_len: int,
     right_len: int,
-) -> List[FuzzyMapping]:
+) -> list[FuzzyMapping]:
     """
     Calculate and set uniqueness percentages for all fuzzy mapping columns.
 
@@ -82,13 +81,13 @@ def fill_perc_unique_in_fuzzy_maps(
     Args:
         left_df (pl.LazyFrame): Left dataframe.
         right_df (pl.LazyFrame): Right dataframe.
-        fuzzy_maps (List[FuzzyMapping]): List of fuzzy mappings between left and right columns.
+        fuzzy_maps (list[FuzzyMapping]): list of fuzzy mappings between left and right columns.
         logger (Logger): Logger for information output.
         left_len (int): Number of rows in the left dataframe.
         right_len (int): Number of rows in the right dataframe.
 
     Returns:
-        List[FuzzyMapping]: Updated fuzzy mappings with calculated uniqueness percentages.
+        list[FuzzyMapping]: Updated fuzzy mappings with calculated uniqueness percentages.
     """
     left_unique_values = get_approx_uniqueness(left_df.select(fuzzy_map.left_col for fuzzy_map in fuzzy_maps))
     right_unique_values = get_approx_uniqueness(right_df.select(fuzzy_map.right_col for fuzzy_map in fuzzy_maps))
@@ -101,7 +100,7 @@ def fill_perc_unique_in_fuzzy_maps(
     return fuzzy_maps
 
 
-def determine_order_of_fuzzy_maps(fuzzy_maps: List[FuzzyMapping]) -> List[FuzzyMapping]:
+def determine_order_of_fuzzy_maps(fuzzy_maps: list[FuzzyMapping]) -> list[FuzzyMapping]:
     """
     Sort fuzzy mappings by their uniqueness percentages in descending order.
 
@@ -109,20 +108,20 @@ def determine_order_of_fuzzy_maps(fuzzy_maps: List[FuzzyMapping]) -> List[FuzzyM
     fuzzy matching process.
 
     Args:
-        fuzzy_maps (List[FuzzyMapping]): List of fuzzy mappings between columns.
+        fuzzy_maps (list[FuzzyMapping]): list of fuzzy mappings between columns.
 
     Returns:
-        List[FuzzyMapping]: Sorted list of fuzzy mappings by uniqueness (highest first).
+        list[FuzzyMapping]: Sorted list of fuzzy mappings by uniqueness (highest first).
     """
     return sorted(fuzzy_maps, key=lambda x: x.perc_unique, reverse=True)
 
 
-def calculate_uniqueness_rate(fuzzy_maps: List[FuzzyMapping]) -> float:
+def calculate_uniqueness_rate(fuzzy_maps: list[FuzzyMapping]) -> float:
     """
     Calculate the total uniqueness rate across all fuzzy mappings.
 
     Args:
-        fuzzy_maps (List[FuzzyMapping]): List of fuzzy mappings with calculated uniqueness.
+        fuzzy_maps (list[FuzzyMapping]): list of fuzzy mappings with calculated uniqueness.
 
     Returns:
         float: Sum of uniqueness percentages across all mappings.
@@ -148,8 +147,8 @@ def determine_need_for_aggregation(uniqueness_rate: float, cartesian_join_number
 
 
 def aggregate_output(
-    left_df: pl.LazyFrame, right_df: pl.LazyFrame, fuzzy_maps: List[FuzzyMapping]
-) -> Tuple[pl.LazyFrame, pl.LazyFrame]:
+    left_df: pl.LazyFrame, right_df: pl.LazyFrame, fuzzy_maps: list[FuzzyMapping]
+) -> tuple[pl.LazyFrame, pl.LazyFrame]:
     """
     Deduplicate the dataframes based on the fuzzy mapping columns.
 
@@ -159,17 +158,17 @@ def aggregate_output(
     Args:
         left_df (pl.LazyFrame): Left dataframe.
         right_df (pl.LazyFrame): Right dataframe.
-        fuzzy_maps (List[FuzzyMapping]): List of fuzzy mappings between columns.
+        fuzzy_maps (list[FuzzyMapping]): list of fuzzy mappings between columns.
 
     Returns:
-        Tuple[pl.LazyFrame, pl.LazyFrame]: Deduplicated left and right dataframes.
+        tuple[pl.LazyFrame, pl.LazyFrame]: Deduplicated left and right dataframes.
     """
     left_df = left_df.unique([fuzzy_map.left_col for fuzzy_map in fuzzy_maps])
     right_df = right_df.unique([fuzzy_map.right_col for fuzzy_map in fuzzy_maps])
     return left_df, right_df
 
 
-def report_on_order_of_fuzzy_maps(fuzzy_maps: List[FuzzyMapping], logger: Logger) -> None:
+def report_on_order_of_fuzzy_maps(fuzzy_maps: list[FuzzyMapping], logger: Logger) -> None:
     """
     Log the ordered list of fuzzy mappings based on their uniqueness scores.
 
@@ -178,7 +177,7 @@ def report_on_order_of_fuzzy_maps(fuzzy_maps: List[FuzzyMapping], logger: Logger
     that are more selective and thus processed first for better performance.
 
     Args:
-        fuzzy_maps (List[FuzzyMapping]): List of fuzzy mappings sorted by uniqueness.
+        fuzzy_maps (list[FuzzyMapping]): list of fuzzy mappings sorted by uniqueness.
         logger (Logger): Logger instance for outputting the mapping order information.
 
     Notes:
@@ -196,8 +195,8 @@ def report_on_order_of_fuzzy_maps(fuzzy_maps: List[FuzzyMapping], logger: Logger
 
 
 def pre_process_for_fuzzy_matching(
-    left_df: pl.LazyFrame, right_df: pl.LazyFrame, fuzzy_maps: List[FuzzyMapping], logger: Logger
-) -> Tuple[pl.LazyFrame, pl.LazyFrame, List[FuzzyMapping]]:
+    left_df: pl.LazyFrame, right_df: pl.LazyFrame, fuzzy_maps: list[FuzzyMapping], logger: Logger
+) -> tuple[pl.LazyFrame, pl.LazyFrame, list[FuzzyMapping]]:
     """
     Preprocess dataframes and fuzzy mappings for optimal fuzzy matching.
 
@@ -211,11 +210,11 @@ def pre_process_for_fuzzy_matching(
     Args:
         left_df (pl.LazyFrame): Left dataframe.
         right_df (pl.LazyFrame): Right dataframe.
-        fuzzy_maps (List[FuzzyMapping]): List of fuzzy mappings between columns.
+        fuzzy_maps (list[FuzzyMapping]): list of fuzzy mappings between columns.
         logger (Logger): Logger for information output.
 
     Returns:
-        Tuple[pl.LazyFrame, pl.LazyFrame, List[FuzzyMapping]]:
+        tuple[pl.LazyFrame, pl.LazyFrame, list[FuzzyMapping]]:
             - Potentially modified left dataframe
             - Potentially modified right dataframe
             - Sorted and updated fuzzy mappings

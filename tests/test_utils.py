@@ -1,15 +1,12 @@
-import tempfile
 import os
+import tempfile
 from unittest.mock import patch
-import pytest
+
 import polars as pl
+import pytest
 from polars.exceptions import PanicException
 
-from pl_fuzzy_frame_match._utils import (
-    collect_lazy_frame,
-    write_polars_frame,
-    cache_polars_frame_to_temp
-)
+from pl_fuzzy_frame_match._utils import cache_polars_frame_to_temp, collect_lazy_frame, write_polars_frame
 
 
 @pytest.fixture
@@ -18,7 +15,7 @@ def sample_dataframe():
     data = {
         "name": ["Alice", "Bob", "Charlie", "Diana"],
         "age": [25, 30, 35, 40],
-        "city": ["New York", "Boston", "Chicago", "Seattle"]
+        "city": ["New York", "Boston", "Chicago", "Seattle"],
     }
     return pl.DataFrame(data)
 
@@ -35,7 +32,7 @@ def large_dataframe():
     data = {
         "id": list(range(10000)),
         "value": [f"value_{i}" for i in range(10000)],
-        "category": [f"cat_{i % 100}" for i in range(10000)]
+        "category": [f"cat_{i % 100}" for i in range(10000)],
     }
     return pl.DataFrame(data)
 
@@ -61,11 +58,11 @@ class TestCollectLazyFrame:
 
     def test_collect_lazy_frame_complete_failure(self, sample_lazy_frame):
         """Test behavior when both engines fail."""
-        with patch.object(sample_lazy_frame, 'collect') as mock_collect:
+        with patch.object(sample_lazy_frame, "collect") as mock_collect:
             # Both calls fail with different exceptions
             mock_collect.side_effect = [
                 PanicException("Streaming engine failed"),
-                RuntimeError("Auto engine also failed")
+                RuntimeError("Auto engine also failed"),
             ]
 
             with pytest.raises(RuntimeError, match="Auto engine also failed"):
@@ -140,7 +137,7 @@ class TestWritePolarsFrame:
         """Test complete failure scenario with mocked write methods."""
         file_path = os.path.join(temp_directory, "test_mock_failure.ipc")
 
-        with patch.object(sample_dataframe, 'write_ipc') as mock_write:
+        with patch.object(sample_dataframe, "write_ipc") as mock_write:
             mock_write.side_effect = Exception("Write failed")
 
             result = write_polars_frame(sample_dataframe, file_path)
@@ -185,7 +182,7 @@ class TestCachePolarsFrameToTemp:
     def test_cache_failure_scenario(self, sample_dataframe, temp_directory):
         """Test behavior when caching fails."""
         # Mock write_polars_frame to always fail
-        with patch('pl_fuzzy_frame_match._utils.write_polars_frame') as mock_write:
+        with patch("pl_fuzzy_frame_match._utils.write_polars_frame") as mock_write:
             mock_write.return_value = False
 
             with pytest.raises(Exception, match="Could not cache the data"):
@@ -212,7 +209,7 @@ class TestCachePolarsFrameToTemp:
 
     def test_cache_uses_uuid_for_filename(self, sample_dataframe, temp_directory):
         """Test that cache uses UUID for unique filenames."""
-        with patch('pl_fuzzy_frame_match._utils.uuid.uuid4') as mock_uuid:
+        with patch("pl_fuzzy_frame_match._utils.uuid.uuid4") as mock_uuid:
             mock_uuid.return_value = "test-uuid-123"
 
             result = cache_polars_frame_to_temp(sample_dataframe, temp_directory)
@@ -285,10 +282,9 @@ class TestEdgeCases:
 
     def test_special_characters_in_data(self, temp_directory):
         """Test handling of special characters in data."""
-        special_df = pl.DataFrame({
-            "text": ["Hello 🌍", "Ñoño", "Café", "Test\nNewline", "Tab\tSeparated"],
-            "numbers": [1, 2, 3, 4, 5]
-        })
+        special_df = pl.DataFrame(
+            {"text": ["Hello 🌍", "Ñoño", "Café", "Test\nNewline", "Tab\tSeparated"], "numbers": [1, 2, 3, 4, 5]}
+        )
 
         # Test the full pipeline
         cached = cache_polars_frame_to_temp(special_df, temp_directory)
@@ -324,7 +320,7 @@ class TestPerformance:
             "id": list(range(size)),
             "name": [f"name_{i}" for i in range(size)],
             "value": [i * 2.5 for i in range(size)],
-            "category": [f"cat_{i % 10}" for i in range(size)]
+            "category": [f"cat_{i % 10}" for i in range(size)],
         }
         large_df = pl.DataFrame(large_data)
 

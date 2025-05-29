@@ -1,8 +1,9 @@
-import polars as pl
-import numpy as np
 import random
 import string
-from typing import Tuple, List, Dict, Any
+from typing import Any, Dict
+
+import polars as pl
+
 from pl_fuzzy_frame_match.models import FuzzyMapping
 
 
@@ -43,10 +44,8 @@ def introduce_typos(text: str, error_rate: float = 0.2) -> str:
 
 # Data generation functions
 def generate_large_scale_data(
-        size: int = 10000,
-        match_rate: float = 0.7,
-        error_rate: float = 0.2
-) -> Dict[str, Dict[str, List[Any]]]:
+    size: int = 10000, match_rate: float = 0.7, error_rate: float = 0.2
+) -> Dict[str, Dict[str, list[Any]]]:
     """
     Generates raw data for large-scale test scenarios.
 
@@ -100,7 +99,7 @@ def generate_large_scale_data(
         "id": list(range(1, size + 1)),
         "company_name": companies,
         "address": addresses,
-        "country": left_countries
+        "country": left_countries,
     }
 
     # Create right dataframe data
@@ -108,15 +107,13 @@ def generate_large_scale_data(
         "id": list(range(1001, size + 1001)),
         "organization": right_companies,
         "location": right_addresses,
-        "country_code": right_countries
+        "country_code": right_countries,
     }
 
-    return {
-        "left_data": left_data,
-        "right_data": right_data
-    }
+    return {"left_data": left_data, "right_data": right_data}
 
-def generate_edge_case_data() -> Dict[str, Dict[str, Dict[str, List[Any]]]]:
+
+def generate_edge_case_data() -> Dict[str, Dict[str, Dict[str, list[Any]]]]:
     """
     Generates raw data for different edge case scenarios.
 
@@ -128,21 +125,17 @@ def generate_edge_case_data() -> Dict[str, Dict[str, Dict[str, List[Any]]]]:
     # Case 1: Empty dataframes
     edge_case_data["empty"] = {
         "left_data": {"company_name": [], "address": []},
-        "right_data": {"organization": [], "location": []}
+        "right_data": {"organization": [], "location": []},
     }
 
     # Case 2: One-to-many matches
     edge_case_data["one_to_many"] = {
-        "left_data": {
-            "id": [1],
-            "company_name": ["ACME Corporation"],
-            "address": ["100 Main St"]
-        },
+        "left_data": {"id": [1], "company_name": ["ACME Corporation"], "address": ["100 Main St"]},
         "right_data": {
             "id": [101, 102, 103, 104, 105],
             "organization": ["ACME Corp", "ACME Corp.", "ACME Inc", "ACME Corporation", "Completely Different"],
-            "location": ["100 Main Street", "100 Main St", "100 Main", "Different Address", "Different Address 2"]
-        }
+            "location": ["100 Main Street", "100 Main St", "100 Main", "Different Address", "Different Address 2"],
+        },
     }
 
     # Case 3: Many-to-one matches
@@ -150,13 +143,9 @@ def generate_edge_case_data() -> Dict[str, Dict[str, Dict[str, List[Any]]]]:
         "left_data": {
             "id": [1, 2, 3, 4, 5],
             "company_name": ["ACME Corp", "ACME Corp.", "ACME Inc", "ACME Corporation", "Completely Different"],
-            "address": ["100 Main Street", "100 Main St", "100 Main", "Different Address", "Different Address 2"]
+            "address": ["100 Main Street", "100 Main St", "100 Main", "Different Address", "Different Address 2"],
         },
-        "right_data": {
-            "id": [101],
-            "organization": ["ACME Corporation"],
-            "location": ["100 Main St"]
-        }
+        "right_data": {"id": [101], "organization": ["ACME Corporation"], "location": ["100 Main St"]},
     }
 
     # Case 4: Multiple fuzzy criteria with varying thresholds
@@ -164,17 +153,27 @@ def generate_edge_case_data() -> Dict[str, Dict[str, Dict[str, List[Any]]]]:
         "left_data": {
             "id": [1, 2, 3, 4, 5],
             "name": ["John Smith", "Jane Doe", "Bob Johnson", "Alice Brown", "David Miller"],
-            "email": ["jsmith@example.com", "jane.doe@example.com", "bob.j@example.com", "alice@example.com",
-                      "david@example.com"],
-            "phone": ["555-1234", "555-5678", "555-9012", "555-3456", "555-7890"]
+            "email": [
+                "jsmith@example.com",
+                "jane.doe@example.com",
+                "bob.j@example.com",
+                "alice@example.com",
+                "david@example.com",
+            ],
+            "phone": ["555-1234", "555-5678", "555-9012", "555-3456", "555-7890"],
         },
         "right_data": {
             "id": [101, 102, 103, 104, 105],
             "full_name": ["John Smith", "Jane Doe", "Robert Johnson", "Alice B.", "Dave Miller"],
-            "contact_email": ["john.smith@example.com", "janedoe@example.com", "bob.johnson@example.com",
-                              "alice@different.com", "d.miller@example.com"],
-            "contact_phone": ["555-1234", "555-5678", "555-9999", "555-3456", "555-7890"]
-        }
+            "contact_email": [
+                "john.smith@example.com",
+                "janedoe@example.com",
+                "bob.johnson@example.com",
+                "alice@different.com",
+                "d.miller@example.com",
+            ],
+            "contact_phone": ["555-1234", "555-5678", "555-9999", "555-3456", "555-7890"],
+        },
     }
 
     # Case 5: Null values in key columns
@@ -182,20 +181,20 @@ def generate_edge_case_data() -> Dict[str, Dict[str, Dict[str, List[Any]]]]:
         "left_data": {
             "id": [1, 2, 3, 4, 5],
             "company_name": ["Company A", None, "Company C", "Company D", "Company E"],
-            "address": ["Address 1", "Address 2", None, "Address 4", "Address 5"]
+            "address": ["Address 1", "Address 2", None, "Address 4", "Address 5"],
         },
         "right_data": {
             "id": [101, 102, 103, 104, 105],
             "organization": ["Company A", "Company B", "Company C", None, "Company E"],
-            "location": ["Address 1", "Address 2", "Address 3", "Address 4", None]
-        }
+            "location": ["Address 1", "Address 2", "Address 3", "Address 4", None],
+        },
     }
 
     return edge_case_data
 
 
 # Create LazyFrames from raw data
-def create_lazy_frames(data: Dict[str, List[Any]]) -> pl.LazyFrame:
+def create_lazy_frames(data: Dict[str, list[Any]]) -> pl.LazyFrame:
     """
     Creates a LazyFrame from dictionary data.
 
@@ -210,11 +209,11 @@ def create_lazy_frames(data: Dict[str, List[Any]]) -> pl.LazyFrame:
 
 # Create FuzzyMappings
 def create_fuzzy_mappings(
-        left_col: str,
-        right_col: str,
-        fuzzy_type: str = "jaro_winkler",
-        threshold_score: float = 20.0,
-        perc_unique: float = 1.0
+    left_col: str,
+    right_col: str,
+    fuzzy_type: str = "jaro_winkler",
+    threshold_score: float = 20.0,
+    perc_unique: float = 1.0,
 ) -> FuzzyMapping:
     """
     Creates a FuzzyMapping object.
@@ -234,7 +233,7 @@ def create_fuzzy_mappings(
         right_col=right_col,
         fuzzy_type=fuzzy_type,
         threshold_score=threshold_score,
-        perc_unique=perc_unique
+        perc_unique=perc_unique,
     )
 
 
@@ -246,32 +245,30 @@ def create_fuzzy_maps():
             right_col="organization",
             fuzzy_type="levenshtein",
             threshold_score=80.0,  # 20% threshold corresponds to 0.8 reversed (80% similarity)
-            perc_unique=1.0
+            perc_unique=1.0,
         ),
         create_fuzzy_mappings(
             left_col="address",
             right_col="location",
             fuzzy_type="levenshtein",
             threshold_score=80.0,  # 20% threshold corresponds to 0.8 reversed (80% similarity)
-            perc_unique=1.2
+            perc_unique=1.2,
         ),
         create_fuzzy_mappings(
             left_col="country",
             right_col="country_code",
             fuzzy_type="jaro_winkler",
             threshold_score=90.0,  # Higher threshold for country codes as they should be more exact
-            perc_unique=0.5  # Lower uniqueness factor since countries are not very unique
-        )
+            perc_unique=0.5,  # Lower uniqueness factor since countries are not very unique
+        ),
     ]
     return fuzzy_mappings
 
 
 # Combined utility functions (for backward compatibility)
 def create_test_data(
-        size: int = 10000,
-        match_rate: float = 0.7,
-        error_rate: float = 0.2
-) -> Tuple[pl.LazyFrame, pl.LazyFrame, List[FuzzyMapping]]:
+    size: int = 10000, match_rate: float = 0.7, error_rate: float = 0.2
+) -> tuple[pl.LazyFrame, pl.LazyFrame, list[FuzzyMapping]]:
     """
     Creates large-scale test data for performance testing.
 
@@ -281,7 +278,7 @@ def create_test_data(
         error_rate: Rate of typos in matching fields
 
     Returns:
-        Tuple of (left_df, right_df, fuzzy_mappings)
+        tuple of (left_df, right_df, fuzzy_mappings)
     """
     # Generate the data
     data = generate_large_scale_data(size, match_rate, error_rate)
@@ -293,7 +290,7 @@ def create_test_data(
     return left_df, right_df, create_fuzzy_maps()
 
 
-def create_edge_case_test_data() -> Dict[str, Tuple[pl.LazyFrame, pl.LazyFrame, List[FuzzyMapping]]]:
+def create_edge_case_test_data() -> Dict[str, tuple[pl.LazyFrame, pl.LazyFrame, list[FuzzyMapping]]]:
     """
     Creates a dictionary of edge case test scenarios.
 
@@ -313,19 +310,11 @@ def create_edge_case_test_data() -> Dict[str, Tuple[pl.LazyFrame, pl.LazyFrame, 
         # Create appropriate fuzzy mappings based on the case
         if case_name == "empty":
             fuzzy_mappings = [
-                create_fuzzy_mappings(
-                    left_col="company_name",
-                    right_col="organization",
-                    threshold_score=20.0
-                )
+                create_fuzzy_mappings(left_col="company_name", right_col="organization", threshold_score=20.0)
             ]
         elif case_name == "one_to_many" or case_name == "many_to_one":
             fuzzy_mappings = [
-                create_fuzzy_mappings(
-                    left_col="company_name",
-                    right_col="organization",
-                    threshold_score=30.0
-                )
+                create_fuzzy_mappings(left_col="company_name", right_col="organization", threshold_score=30.0)
             ]
         elif case_name == "multi_criteria":
             fuzzy_mappings = [
@@ -344,23 +333,14 @@ def create_edge_case_test_data() -> Dict[str, Tuple[pl.LazyFrame, pl.LazyFrame, 
                     right_col="contact_phone",
                     fuzzy_type="exact",
                     threshold_score=0.0,
-                )
+                ),
             ]
         elif case_name == "null_values":
             fuzzy_mappings = [
-                create_fuzzy_mappings(
-                    left_col="company_name",
-                    right_col="organization",
-                    threshold_score=20.0
-                )
+                create_fuzzy_mappings(left_col="company_name", right_col="organization", threshold_score=20.0)
             ]
         else:
-            fuzzy_mappings = [
-                create_fuzzy_mappings(
-                    left_col="company_name",
-                    right_col="organization"
-                )
-            ]
+            fuzzy_mappings = [create_fuzzy_mappings(left_col="company_name", right_col="organization")]
 
         edge_cases[case_name] = (left_df, right_df, fuzzy_mappings)
 
@@ -374,12 +354,14 @@ def generate_small_fuzzy_test_data_left() -> pl.DataFrame:
     Returns:
         LazyFrame with left side test data
     """
-    return pl.DataFrame({
-        "id": [1, 2, 3, 4, 5],
-        "company_name": ["Apple Inc.", "Microsft", "Amazon", "Gogle", "Facebok"],
-        "address": ["1 Apple Park", "One Microsoft Way", "410 Terry Ave N", "1600 Amphitheatre", "1 Hacker Way"],
-        "contact": ["Tim Cook", "Satya Ndella", "Andy Jessy", "Sundar Pichai", "Mark Zukerberg"]
-    })
+    return pl.DataFrame(
+        {
+            "id": [1, 2, 3, 4, 5],
+            "company_name": ["Apple Inc.", "Microsft", "Amazon", "Gogle", "Facebok"],
+            "address": ["1 Apple Park", "One Microsoft Way", "410 Terry Ave N", "1600 Amphitheatre", "1 Hacker Way"],
+            "contact": ["Tim Cook", "Satya Ndella", "Andy Jessy", "Sundar Pichai", "Mark Zukerberg"],
+        }
+    )
 
 
 def generate_small_fuzzy_test_data_right() -> pl.DataFrame:
@@ -389,39 +371,38 @@ def generate_small_fuzzy_test_data_right() -> pl.DataFrame:
     Returns:
         LazyFrame with right side test data
     """
-    return pl.DataFrame({
-        "id": [101, 102, 103, 104, 105],
-        "organization": ["Apple Incorporated", "Microsoft Corp", "Amazon.com Inc", "Google LLC", "Facebook Inc"],
-        "location": ["Apple Park, Cupertino", "Microsoft Way, Redmond", "Terry Ave North, Seattle",
-                     "Amphitheatre Pkwy, Mountain View", "Hacker Way, Menlo Park"],
-        "ceo": ["Timothy Cook", "Satya Nadella", "Andy Jassy", "Sundar Pichai", "Mark Zuckerberg"]
-    })
+    return pl.DataFrame(
+        {
+            "id": [101, 102, 103, 104, 105],
+            "organization": ["Apple Incorporated", "Microsoft Corp", "Amazon.com Inc", "Google LLC", "Facebook Inc"],
+            "location": [
+                "Apple Park, Cupertino",
+                "Microsoft Way, Redmond",
+                "Terry Ave North, Seattle",
+                "Amphitheatre Pkwy, Mountain View",
+                "Hacker Way, Menlo Park",
+            ],
+            "ceo": ["Timothy Cook", "Satya Nadella", "Andy Jassy", "Sundar Pichai", "Mark Zuckerberg"],
+        }
+    )
 
 
-def generate_small_fuzzy_test_mappings() -> List[FuzzyMapping]:
+def generate_small_fuzzy_test_mappings() -> list[FuzzyMapping]:
     """
     Creates fuzzy mappings for the small test dataset.
 
     Returns:
-        List of FuzzyMapping objects
+        list of FuzzyMapping objects
     """
     return [
         create_fuzzy_mappings(
-            left_col="company_name",
-            right_col="organization",
-            fuzzy_type="jaro_winkler",
-            threshold_score=20.0
+            left_col="company_name", right_col="organization", fuzzy_type="jaro_winkler", threshold_score=20.0
         ),
-        create_fuzzy_mappings(
-            left_col="contact",
-            right_col="ceo",
-            fuzzy_type="levenshtein",
-            threshold_score=30.0
-        )
+        create_fuzzy_mappings(left_col="contact", right_col="ceo", fuzzy_type="levenshtein", threshold_score=30.0),
     ]
 
 
-def generate_small_fuzzy_test_data() -> Tuple[pl.DataFrame, pl.DataFrame, List[FuzzyMapping]]:
+def generate_small_fuzzy_test_data() -> tuple[pl.DataFrame, pl.DataFrame, list[FuzzyMapping]]:
     """
     Generates small test data for fuzzy matching.
     """
@@ -443,10 +424,11 @@ def create_deterministic_test_data(size=20):
 
     Returns:
     --------
-    Tuple[pl.LazyFrame, pl.LazyFrame, List[FuzzyMapping]]
+    tuple[pl.LazyFrame, pl.LazyFrame, list[FuzzyMapping]]
         A tuple containing left dataframe, right dataframe, and fuzzy mappings
     """
     import polars as pl
+
     from pl_fuzzy_frame_match.models import FuzzyMapping
 
     # Create deterministic data with unique values
@@ -454,14 +436,14 @@ def create_deterministic_test_data(size=20):
         "id": list(range(1, size + 1)),
         "company_name": [f"Company_{i}" for i in range(1, size + 1)],
         "address": [f"Address_{i}" for i in range(1, size + 1)],
-        "country": [f"Country_{i % 5}" for i in range(1, size + 1)]
+        "country": [f"Country_{i % 5}" for i in range(1, size + 1)],
     }
 
     right_data = {
         "id": list(range(101, size + 101)),
         "organization": [f"Organization_{i}" for i in range(1, size + 1)],
         "location": [f"Location_{i}" for i in range(1, size + 1)],
-        "country_code": [f"Code_{i % 5}" for i in range(1, size + 1)]
+        "country_code": [f"Code_{i % 5}" for i in range(1, size + 1)],
     }
 
     # Create the LazyFrames
@@ -475,22 +457,18 @@ def create_deterministic_test_data(size=20):
             right_col="organization",
             fuzzy_type="levenshtein",
             threshold_score=80.0,
-            perc_unique=1.0
+            perc_unique=1.0,
         ),
         FuzzyMapping(
-            left_col="address",
-            right_col="location",
-            fuzzy_type="levenshtein",
-            threshold_score=80.0,
-            perc_unique=1.2
+            left_col="address", right_col="location", fuzzy_type="levenshtein", threshold_score=80.0, perc_unique=1.2
         ),
         FuzzyMapping(
             left_col="country",
             right_col="country_code",
             fuzzy_type="jaro_winkler",
             threshold_score=90.0,
-            perc_unique=0.5
-        )
+            perc_unique=0.5,
+        ),
     ]
 
     return left_df, right_df, fuzzy_mappings

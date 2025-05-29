@@ -1,5 +1,6 @@
 import polars as pl
 import polars_distance as pld
+
 from ._utils import cache_polars_frame_to_temp, collect_lazy_frame
 from .models import FuzzyTypeLiteral
 
@@ -40,8 +41,7 @@ def calculate_fuzzy_score(
         - Results are filtered to only include matches above the specified threshold
     """
     mapping_table = mapping_table.with_columns(
-        pl.col(left_col_name).str.to_lowercase().alias("left"),
-        pl.col(right_col_name).str.to_lowercase().alias("right")
+        pl.col(left_col_name).str.to_lowercase().alias("left"), pl.col(right_col_name).str.to_lowercase().alias("right")
     )
     mapping_table = mapping_table.with_columns(
         pl.col(left_col_name).str.to_lowercase().alias("left"), pl.col(right_col_name).str.to_lowercase().alias("right")
@@ -60,7 +60,8 @@ def calculate_fuzzy_score(
 
 
 def process_fuzzy_frames(
-    left_df: pl.LazyFrame, right_df: pl.LazyFrame, left_col_name: str, right_col_name: str, temp_dir_ref: str):
+    left_df: pl.LazyFrame, right_df: pl.LazyFrame, left_col_name: str, right_col_name: str, temp_dir_ref: str
+):
     """
     Process and optimize dataframes for fuzzy matching by creating grouped representations.
 

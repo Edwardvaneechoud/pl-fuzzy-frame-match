@@ -1,7 +1,8 @@
-import polars as pl
 import logging
 import os
 import uuid
+
+import polars as pl
 from polars.exceptions import PanicException
 
 logger = logging.getLogger(__name__)
@@ -62,21 +63,21 @@ def write_polars_frame(_df: pl.LazyFrame | pl.DataFrame, path: str, estimated_si
 
         if is_lazy:
             logger.info("Writing in memory efficient mode")
-            write_method = getattr(_df, "sink_ipc")
+            write_method = _df.sink_ipc
             try:
                 write_method(path)
                 return True
-            except Exception as e:
+            except Exception:
                 pass
             try:
                 write_method(path)
                 return True
-            except Exception as e:
+            except Exception:
                 pass
         if is_lazy:
             _df = collect_lazy_frame(_df)
     try:
-        write_method = getattr(_df, "write_ipc")
+        write_method = _df.write_ipc
         write_method(path)
         return True
     except Exception as e:

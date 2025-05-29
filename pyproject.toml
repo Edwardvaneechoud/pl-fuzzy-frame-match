@@ -71,7 +71,28 @@ extend-exclude = '''
 [tool.ruff]
 line-length = 120
 target-version = "py39"
-
+exclude = [
+    ".bzr",
+    ".direnv",
+    ".eggs",
+    ".git",
+    ".hg",
+    ".mypy_cache",
+    ".nox",
+    ".pants.d",
+    ".ruff_cache",
+    ".svn",
+    ".tox",
+    ".venv",
+    "__pypackages__",
+    "_build",
+    "buck-out",
+    "build",
+    "dist",
+    "node_modules",
+    "venv",
+    "tests", # Your directory to exclude
+]
 [tool.ruff.lint]
 select = [
     "E",  # pycodestyle errors

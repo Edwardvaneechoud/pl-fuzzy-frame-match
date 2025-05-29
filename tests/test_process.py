@@ -1,22 +1,14 @@
-from typing import List
-
 import polars as pl
 import pytest
 
 from pl_fuzzy_frame_match.models import FuzzyTypeLiteral
-from pl_fuzzy_frame_match.process import (
-    calculate_fuzzy_score,
-    calculate_and_parse_fuzzy,
-    process_fuzzy_frames
-)
+from pl_fuzzy_frame_match.process import calculate_and_parse_fuzzy, calculate_fuzzy_score, process_fuzzy_frames
+
 from .match_utils import generate_small_fuzzy_test_data_left, generate_small_fuzzy_test_data_right
 
 # Test configuration
-FUZZY_TYPES: List[FuzzyTypeLiteral] = [
-    'levenshtein', 'jaro', 'jaro_winkler',
-    'hamming', 'damerau_levenshtein', 'indel'
-]
-THRESHOLD_VALUES: List[float] = [0.3, 0.5, 0.7, 0.9]
+FUZZY_TYPES: list[FuzzyTypeLiteral] = ["levenshtein", "jaro", "jaro_winkler", "hamming", "damerau_levenshtein", "indel"]
+THRESHOLD_VALUES: list[float] = [0.3, 0.5, 0.7, 0.9]
 
 
 @pytest.fixture(autouse=True)
@@ -32,16 +24,9 @@ def no_caching(monkeypatch):
     try:
         # Import and patch utils module
         import pl_fuzzy_frame_match._utils
-        monkeypatch.setattr(
-            pl_fuzzy_frame_match._utils,
-            'cache_polars_frame_to_temp',
-            _cache_polars_frame_to_temp
-        )
-        monkeypatch.setattr(
-            pl_fuzzy_frame_match._utils,
-            'write_polars_frame',
-            lambda df, path: True
-        )
+
+        monkeypatch.setattr(pl_fuzzy_frame_match._utils, "cache_polars_frame_to_temp", _cache_polars_frame_to_temp)
+        monkeypatch.setattr(pl_fuzzy_frame_match._utils, "write_polars_frame", lambda df, path: True)
     except (ImportError, AttributeError) as e:
         print(f"Warning: Unable to patch caching functions: {e}")
 
@@ -52,7 +37,7 @@ def small_test_data() -> pl.LazyFrame:
     """Create a small dataset for fuzzy matching tests."""
     test_data = {
         "left_name": ["John", "Johan", "Johannes", "Edward", "Edwin", "Smith", "Simpson", "Thompson"],
-        "right_name": ["Johny", "Doris", "John", "Eduward", "Edwin", "Smyth", "Simson", "Thomson"]
+        "right_name": ["Johny", "Doris", "John", "Eduward", "Edwin", "Smyth", "Simson", "Thomson"],
     }
     return pl.LazyFrame(test_data)
 
@@ -64,7 +49,7 @@ def test_data_with_indices() -> pl.LazyFrame:
         "left_name": ["John", "Johan", "Johannes", "Edward"],
         "right_name": ["Johny", "Doris", "John", "Eduward"],
         "__left_index": [[1, 2], [3, 4], [5, 6], [7, 8]],
-        "__right_index": [[10, 20], [30, 40], [50, 60], [70, 80]]
+        "__right_index": [[10, 20], [30, 40], [50, 60], [70, 80]],
     }
     return pl.LazyFrame(test_data)
 
@@ -76,7 +61,7 @@ def test_data_empty_indices() -> pl.LazyFrame:
         "left_name": ["John", "Johan", "Johannes"],
         "right_name": ["Johny", "Doris", "John"],
         "__left_index": [[], [1, 2], [3]],
-        "__right_index": [[10], [20, 30], []]
+        "__right_index": [[10], [20, 30], []],
     }
     return pl.LazyFrame(test_data)
 
@@ -86,13 +71,7 @@ def test_data_empty_indices() -> pl.LazyFrame:
 @pytest.mark.parametrize("threshold", THRESHOLD_VALUES)
 def test_calculate_fuzzy_score_all_types(small_test_data: pl.LazyFrame, fuzzy_type: FuzzyTypeLiteral, threshold: float):
     """Test all fuzzy matching algorithms with various thresholds."""
-    result_df = calculate_fuzzy_score(
-        small_test_data,
-        "left_name",
-        "right_name",
-        fuzzy_type,
-        threshold
-    ).collect()
+    result_df = calculate_fuzzy_score(small_test_data, "left_name", "right_name", fuzzy_type, threshold).collect()
 
     # Basic validation
     assert not result_df.is_empty()
@@ -116,18 +95,16 @@ def test_calculate_and_parse_fuzzy(test_data_with_indices):
 
     # Expected result
     expected_data = pl.DataFrame(
-        {'s': [0.8, 0.8, 0.8, 0.8, 0.8571428571428572, 0.8571428571428572, 0.8571428571428572, 0.8571428571428572],
-         '__left_index': [1, 1, 2, 2, 7, 7, 8, 8],
-         '__right_index': [10, 20, 10, 20, 70, 80, 70, 80]}
+        {
+            "s": [0.8, 0.8, 0.8, 0.8, 0.8571428571428572, 0.8571428571428572, 0.8571428571428572, 0.8571428571428572],
+            "__left_index": [1, 1, 2, 2, 7, 7, 8, 8],
+            "__right_index": [10, 20, 10, 20, 70, 80, 70, 80],
+        }
     )
 
     # Execute function and collect results
     result_df = calculate_and_parse_fuzzy(
-        test_data_with_indices,
-        "left_name",
-        "right_name",
-        fuzzy_method,
-        threshold
+        test_data_with_indices, "left_name", "right_name", fuzzy_method, threshold
     ).collect()
 
     # Basic validation
@@ -159,11 +136,7 @@ def test_calculate_and_parse_fuzzy_empty_indices(test_data_empty_indices):
 
     # Execute function and collect results
     result_df = calculate_and_parse_fuzzy(
-        test_data_empty_indices,
-        "left_name",
-        "right_name",
-        fuzzy_method,
-        threshold
+        test_data_empty_indices, "left_name", "right_name", fuzzy_method, threshold
     ).collect()
 
     # Basic validation
@@ -193,19 +166,21 @@ def test_process_fuzzy_frames(monkeypatch):
         print("Mock collect_lazy_frame called")
         return df.collect()
 
-    monkeypatch.setattr(process, 'cache_polars_frame_to_temp', mock_cache_polars_frame_to_temp)
-    monkeypatch.setattr(process, 'collect_lazy_frame', mock_collect_lazy_frame)
+    monkeypatch.setattr(process, "cache_polars_frame_to_temp", mock_cache_polars_frame_to_temp)
+    monkeypatch.setattr(process, "collect_lazy_frame", mock_collect_lazy_frame)
 
     # Prepare test data
     temp_dir_ref = "/temp"
-    left_df = (generate_small_fuzzy_test_data_left().lazy()
-               .with_columns(pl.col("id")
-                             .map_elements(lambda x: [x], return_dtype=pl.List(pl.Int64))
-                             .alias("__left_index")))
-    right_df = (generate_small_fuzzy_test_data_right().lazy()
-                .with_columns(pl.col("id")
-                              .map_elements(lambda x: [x], return_dtype=pl.List(pl.Int64))
-                              .alias("__right_index")))
+    left_df = (
+        generate_small_fuzzy_test_data_left()
+        .lazy()
+        .with_columns(pl.col("id").map_elements(lambda x: [x], return_dtype=pl.List(pl.Int64)).alias("__left_index"))
+    )
+    right_df = (
+        generate_small_fuzzy_test_data_right()
+        .lazy()
+        .with_columns(pl.col("id").map_elements(lambda x: [x], return_dtype=pl.List(pl.Int64)).alias("__right_index"))
+    )
 
     # Define column names
     left_col_name = "company_name"
@@ -213,11 +188,7 @@ def test_process_fuzzy_frames(monkeypatch):
 
     # Execute the function
     left_fuzzy_frame, right_fuzzy_frame, result_left_col, result_right_col, len_left, len_right = process_fuzzy_frames(
-        left_df,
-        right_df,
-        left_col_name,
-        right_col_name,
-        temp_dir_ref
+        left_df, right_df, left_col_name, right_col_name, temp_dir_ref
     )
 
     # Verify results

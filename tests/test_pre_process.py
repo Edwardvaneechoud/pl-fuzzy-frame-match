@@ -1,24 +1,23 @@
-
+import logging
 import tempfile
-
-from .match_utils import (create_test_data, create_fuzzy_maps)
 
 import polars as pl
 import pytest
-import logging
 
 # Import functions to test
 from pl_fuzzy_frame_match.pre_process import (
-    get_approx_uniqueness,
-    calculate_uniqueness,
+    aggregate_output,
     calculate_df_len,
-    fill_perc_unique_in_fuzzy_maps,
-    determine_order_of_fuzzy_maps,
+    calculate_uniqueness,
     calculate_uniqueness_rate,
     determine_need_for_aggregation,
-    aggregate_output,
-    pre_process_for_fuzzy_matching
+    determine_order_of_fuzzy_maps,
+    fill_perc_unique_in_fuzzy_maps,
+    get_approx_uniqueness,
+    pre_process_for_fuzzy_matching,
 )
+
+from .match_utils import create_fuzzy_maps, create_test_data
 
 
 @pytest.fixture
@@ -28,14 +27,15 @@ def sample_dataframe():
         "name": ["John", "Alice", "Bob", "Charlie"],
         "age": [30, 25, 35, 40],
         "city": ["New York", "Boston", "Chicago", "Seattle"],
-        'country': ['USA', 'USA', 'USA', 'Canada']
+        "country": ["USA", "USA", "USA", "Canada"],
     }
     return pl.DataFrame(data).lazy()
 
 
 @pytest.fixture
 def flow_logger():
-    return logging.getLogger('sample')
+    return logging.getLogger("sample")
+
 
 @pytest.fixture
 def temp_directory():
@@ -48,7 +48,7 @@ def temp_directory():
 
 def test_get_approx_uniqueness(sample_dataframe):
     uniqueness = get_approx_uniqueness(sample_dataframe)
-    assert uniqueness == {'name': 4, 'age': 4, 'city': 4, 'country': 2}
+    assert uniqueness == {"name": 4, "age": 4, "city": 4, "country": 2}
 
 
 def test_calculate_uniqueness():
@@ -118,9 +118,9 @@ def test_process_fuzzy_mapping_no_uniqueness(flow_logger):
     assert left_df_prep.collect().shape[0] < left_df.select(mapping[0].left_col).collect().shape[0]
     assert right_df_prep.collect().shape[0] < right_df.select(mapping[0].right_col).collect().shape[0]
 
+
 def test_process_fuzzy_mapping_uniqueness(flow_logger):
     left_df, right_df, mapping = create_test_data(100000)
     left_df_prep, right_df_prep, mapping = pre_process_for_fuzzy_matching(left_df, right_df, mapping, flow_logger)
     assert left_df_prep.collect().shape[0] == left_df.select(pl.first()).collect().shape[0]
     assert right_df_prep.collect().shape[0] == right_df.select(pl.first()).collect().shape[0]
-

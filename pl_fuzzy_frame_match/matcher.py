@@ -242,7 +242,7 @@ def cross_join_no_existing_fuzzy_results(
     right_col_name: str,
     temp_dir_ref: str,
     logger: Logger,
-    use_appr_nearest_neighbor: bool | None = None
+    use_appr_nearest_neighbor: bool | None = None,
 ) -> pl.LazyFrame:
     """
     Generate fuzzy matching results by performing a cross join between dataframes.
@@ -304,7 +304,7 @@ def cross_join_no_existing_fuzzy_results(
     if cartesian_size > max_size:
         logger.error(f"The cartesian product of the two dataframes is too large to process: {cartesian_size}")
         raise Exception("The cartesian product of the two dataframes is too large to process.")
-    if (cartesian_size > 100_000_000 and use_appr_nearest_neighbor is None) or  use_appr_nearest_neighbor:
+    if (cartesian_size > 100_000_000 and use_appr_nearest_neighbor is None) or use_appr_nearest_neighbor:
         logger.info("Performing approximate fuzzy match for large dataframes to reduce memory usage.")
         cross_join_frame = cross_join_large_files(
             left_fuzzy_frame,
@@ -403,7 +403,7 @@ def process_fuzzy_mapping(
     i: int,
     logger: Logger,
     existing_number_of_matches: int | None = None,
-    use_appr_nearest_neighbor_for_new_matches: bool | None = None
+    use_appr_nearest_neighbor_for_new_matches: bool | None = None,
 ) -> tuple[pl.LazyFrame, int | None]:
     """
     Process a single fuzzy mapping to generate matching dataframes.
@@ -470,7 +470,7 @@ def perform_all_fuzzy_matches(
     fuzzy_maps: list[FuzzyMapping],
     logger: Logger,
     local_temp_dir_ref: str,
-    use_appr_nearest_neighbor_for_new_matches: bool | None = None
+    use_appr_nearest_neighbor_for_new_matches: bool | None = None,
 ) -> list[pl.LazyFrame]:
     """
     Iteratively processes a list of fuzzy mapping configurations to find matches between two dataframes.
@@ -521,18 +521,19 @@ def perform_all_fuzzy_matches(
             i=i,
             logger=logger,
             existing_number_of_matches=existing_number_of_matches,
-            use_appr_nearest_neighbor_for_new_matches=use_appr_nearest_neighbor_for_new_matches
+            use_appr_nearest_neighbor_for_new_matches=use_appr_nearest_neighbor_for_new_matches,
         )
         matching_dfs.append(existing_matches)
     return matching_dfs
 
 
 def fuzzy_match_dfs(
-        left_df: pl.LazyFrame,
-        right_df: pl.LazyFrame,
-        fuzzy_maps: list[FuzzyMapping],
-        logger: Logger,
-        use_appr_nearest_neighbor_for_new_matches: bool | None = None) -> pl.DataFrame:
+    left_df: pl.LazyFrame,
+    right_df: pl.LazyFrame,
+    fuzzy_maps: list[FuzzyMapping],
+    logger: Logger,
+    use_appr_nearest_neighbor_for_new_matches: bool | None = None,
+) -> pl.DataFrame:
     """
     Perform fuzzy matching between two dataframes using multiple fuzzy mapping configurations.
 
@@ -555,8 +556,9 @@ def fuzzy_match_dfs(
     left_df = add_index_column(left_df, "__left_index", local_temp_dir_ref)
     right_df = add_index_column(right_df, "__right_index", local_temp_dir_ref)
 
-    matching_dfs = perform_all_fuzzy_matches(left_df, right_df, fuzzy_maps, logger, local_temp_dir_ref,
-                                             use_appr_nearest_neighbor_for_new_matches)
+    matching_dfs = perform_all_fuzzy_matches(
+        left_df, right_df, fuzzy_maps, logger, local_temp_dir_ref, use_appr_nearest_neighbor_for_new_matches
+    )
 
     # Combine all matches
     if len(matching_dfs) > 1:

@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Literal, Optional
+from typing import Literal
 
 FuzzyTypeLiteral = Literal["levenshtein", "jaro", "jaro_winkler", "hamming", "damerau_levenshtein", "indel"]
 
@@ -15,7 +15,7 @@ class FuzzyMapping(JoinMap):
     threshold_score: float = 80.0
     fuzzy_type: FuzzyTypeLiteral = "levenshtein"
     perc_unique: float = 0.0
-    output_column_name: Optional[str] = None
+    output_column_name: str | None = None
     valid: bool = True
 
     def __init__(

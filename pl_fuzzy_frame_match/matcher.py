@@ -1,6 +1,5 @@
 import tempfile
 from logging import Logger
-from typing import Optional
 
 import polars as pl
 import polars_simed as ps
@@ -322,7 +321,7 @@ def cross_join_no_existing_fuzzy_results(
     return cross_join_frame
 
 
-def unique_df_large(_df: pl.DataFrame | pl.LazyFrame, cols: Optional[list[str]] = None) -> pl.DataFrame:
+def unique_df_large(_df: pl.DataFrame | pl.LazyFrame, cols: list[str] | None = None) -> pl.DataFrame:
     """
     Efficiently compute unique rows in large dataframes by partitioning.
 
@@ -403,11 +402,11 @@ def process_fuzzy_mapping(
     fuzzy_map: FuzzyMapping,
     left_df: pl.LazyFrame,
     right_df: pl.LazyFrame,
-    existing_matches: Optional[pl.LazyFrame],
+    existing_matches: pl.LazyFrame | None,
     local_temp_dir_ref: str,
     i: int,
     logger: Logger,
-    existing_number_of_matches: Optional[int] = None,
+    existing_number_of_matches: int | None = None,
 ) -> tuple[pl.LazyFrame, int]:
     """
     Process a single fuzzy mapping to generate matching dataframes.

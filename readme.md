@@ -41,20 +41,20 @@ poetry add pl-fuzzy-frame-match
 
 Performance comparison on commodity hardware (M3 Mac, 36GB RAM):
 
-| Dataset Size | Cartesian Product | Standard Cross Join | Automatic Selection | Speedup |
-|--------------|------------------|-------------------|-------------------|---------|
-| 500 × 400 | 200K | 0.04s | 0.03s | 1.3x |
-| 3K × 2K | 6M | 0.39s | 0.39s | 1x |
-| 10K × 8K | 80M | 18.67s | 18.79s | 1x |
-| 15K × 10K | 150M | 40.82s | 1.45s | **28x** |
-| 40K × 30K | 1.2B | 363.50s | 4.75s | **76x** |
-| 400K × 10K | 4B | Skipped* | 34.52s | **∞** |
+| Dataset Size | Cartesian Product | Standard Cross Join Fuzzy match | Automatic Selection | Speedup |
+|--------------|------------------|---------------------------------|-------------------|---------|
+| 500 × 400 | 200K | 0.04s                           | 0.03s | 1.3x |
+| 3K × 2K | 6M | 0.39s                           | 0.39s | 1x |
+| 10K × 8K | 80M | 18.67s                          | 18.79s | 1x |
+| 15K × 10K | 150M | 40.82s                          | 1.45s | **28x** |
+| 40K × 30K | 1.2B | 363.50s                         | 4.75s | **76x** |
+| 400K × 10K | 4B | Skipped*                        | 34.52s | **∞** |
 
 *Skipped due to prohibitive runtime
 
 **Key Observations:**
-- **Small to Medium datasets** (< 100M): Automatic selection uses standard cross join for optimal speed
-- **Large datasets** (≥ 100M): Automatic selection switches to approximate matching for massive speedups
+- **Small to Medium datasets** (< 100M): Automatic selection uses standard cross join for optimal speed and accuracy
+- **Large datasets** (≥ 100M): Automatic selection switches to approximate matching first and then matches the dataframes
 - **Memory efficiency**: Can handle billions of potential comparisons without running out of memory
 
 ## Quick Start

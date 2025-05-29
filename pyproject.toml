@@ -95,6 +95,8 @@ exclude = [
     "node_modules",
     "venv",
     "tests", # Your directory to exclude
+    "performance_test", # Add this line
+
 ]
 [tool.ruff.lint]
 select = [

@@ -1,4 +1,5 @@
 from logging import Logger
+from typing import cast
 
 import polars as pl
 
@@ -61,7 +62,7 @@ def calculate_df_len(df: pl.LazyFrame) -> int:
         - More memory-efficient than collecting the entire LazyFrame first
         - Essential for preprocessing decisions in fuzzy matching operations
     """
-    return collect_lazy_frame(df.select(pl.len()))[0, 0]
+    return cast(int, collect_lazy_frame(df.select(pl.len()))[0, 0])
 
 
 def fill_perc_unique_in_fuzzy_maps(

@@ -1,5 +1,6 @@
 import tempfile
 from logging import Logger
+from typing import cast
 
 import polars as pl
 import polars_simed as ps
@@ -159,7 +160,7 @@ def cross_join_large_files(
 
     # Combine all matches
     if df_matches:
-        return pl.concat(df_matches).lazy()
+        return cast(pl.LazyFrame, pl.concat(df_matches).lazy())
     else:
         columns = list(set(left_df.columns).union(set(right_df.columns)))
         return pl.DataFrame(schema={col: pl.Null for col in columns}).lazy()
@@ -406,7 +407,7 @@ def process_fuzzy_mapping(
     i: int,
     logger: Logger,
     existing_number_of_matches: int | None = None,
-) -> tuple[pl.LazyFrame, int]:
+) -> tuple[pl.LazyFrame, int | None]:
     """
     Process a single fuzzy mapping to generate matching dataframes.
 
@@ -459,7 +460,7 @@ def process_fuzzy_mapping(
     matching_df = cache_polars_frame_to_temp(matching_df, local_temp_dir_ref)
     if existing_number_of_matches is None or existing_number_of_matches > 100_000_000:
         existing_number_of_matches = matching_df.select(pl.len()).collect()[0, 0]
-    if existing_number_of_matches > 100_000_000:
+    if isinstance(existing_number_of_matches, int) and existing_number_of_matches > 100_000_000:
         return unique_df_large(matching_df.rename({"s": f"fuzzy_score_{i}"})).lazy(), existing_number_of_matches
     else:
         return matching_df.rename({"s": f"fuzzy_score_{i}"}).unique(), existing_number_of_matches

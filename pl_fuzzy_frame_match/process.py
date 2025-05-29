@@ -61,7 +61,7 @@ def calculate_fuzzy_score(
 
 def process_fuzzy_frames(
     left_df: pl.LazyFrame, right_df: pl.LazyFrame, left_col_name: str, right_col_name: str, temp_dir_ref: str
-):
+) -> tuple[pl.LazyFrame, pl.LazyFrame, str, str, int, int]:
     """
     Process and optimize dataframes for fuzzy matching by creating grouped representations.
 

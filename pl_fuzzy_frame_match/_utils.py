@@ -5,6 +5,8 @@ import uuid
 import polars as pl
 from polars.exceptions import PanicException
 
+from typing import cast
+
 logger = logging.getLogger(__name__)
 
 
@@ -58,12 +60,12 @@ def write_polars_frame(_df: pl.LazyFrame | pl.DataFrame, path: str, estimated_si
         if estimated_size > 0:
             fit_memory = estimated_size / 1024 / 1000 / 1000 < 8
             if fit_memory:
-                _df = _df.collect()
+                _df = cast(pl.LazyFrame, _df).collect()
                 is_lazy = False
 
         if is_lazy:
             logger.info("Writing in memory efficient mode")
-            write_method = _df.sink_ipc
+            write_method = cast(pl.LazyFrame, _df).sink_ipc
             try:
                 write_method(path)
                 return True
@@ -75,9 +77,10 @@ def write_polars_frame(_df: pl.LazyFrame | pl.DataFrame, path: str, estimated_si
             except Exception:
                 pass
         if is_lazy:
-            _df = collect_lazy_frame(_df)
+            _df = collect_lazy_frame(cast(pl.LazyFrame, _df))
     try:
-        write_method = _df.write_ipc
+        df_to_write = cast(pl.DataFrame, _df)
+        write_method = df_to_write.write_ipc  # type: ignore[assignment]
         write_method(path)
         return True
     except Exception as e:
@@ -85,7 +88,7 @@ def write_polars_frame(_df: pl.LazyFrame | pl.DataFrame, path: str, estimated_si
         return False
 
 
-def cache_polars_frame_to_temp(_df: pl.LazyFrame | pl.DataFrame, tempdir: str = None) -> pl.LazyFrame:
+def cache_polars_frame_to_temp(_df: pl.LazyFrame | pl.DataFrame, tempdir: str | None = None) -> pl.LazyFrame:
     """
     Cache a Polars DataFrame or LazyFrame to a temporary file and return a LazyFrame reference.
 

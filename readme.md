@@ -12,7 +12,7 @@ This library automatically selects the best matching strategy based on your data
 
 This hybrid approach means you get:
 - ✅ **Best-in-class performance** regardless of data size
-- ✅ **High accuracy** with configurable similarity thresholds  
+- ✅ **High accuracy** with configurable similarity thresholds
 - ✅ **Memory efficiency** through chunked processing
 - ✅ **No manual optimization needed** - the library handles it automatically
 
@@ -159,7 +159,7 @@ This means you can use the same API whether matching 1,000 or 100 million record
   ```
 - **Optimal threshold**: Start with higher thresholds (80-90%) for better performance
 - **Column selection**: Use columns with high uniqueness for better candidate reduction
-- **Algorithm choice**: 
+- **Algorithm choice**:
   - `jaro_winkler`: Best for names and short strings
   - `levenshtein`: Best for general text and typos
   - `damerau_levenshtein`: Best when transpositions are common

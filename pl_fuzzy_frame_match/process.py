@@ -12,18 +12,37 @@ def calculate_fuzzy_score(
     th_score: float,
 ) -> pl.LazyFrame:
     """
-    Calculate fuzzy matching scores between columns in a LazyFrame.
+    Calculate fuzzy matching scores between columns in a LazyFrame using specified algorithms.
+
+    This function performs string similarity calculations between two columns using various
+    fuzzy matching algorithms. It normalizes strings to lowercase, calculates similarity
+    scores, filters results based on a threshold, and converts distance scores to similarity scores.
 
     Args:
-        mapping_table: The DataFrame containing columns to compare
-        left_col_name: Name of the left column for comparison
-        right_col_name: Name of the right column for comparison
-        fuzzy_method: Type of fuzzy matching algorithm to use
-        th_score: The threshold score for fuzzy matching
+        mapping_table (pl.LazyFrame): The DataFrame containing columns to compare.
+        left_col_name (str): Name of the left column for comparison.
+        right_col_name (str): Name of the right column for comparison.
+        fuzzy_method (FuzzyTypeLiteral): Type of fuzzy matching algorithm to use.
+                                       Options include 'levenshtein', 'jaro', 'jaro_winkler',
+                                       'hamming', 'damerau_levenshtein', 'indel'.
+        th_score (float): The threshold score for fuzzy matching (0-1 scale, where lower
+                         values represent stricter matching criteria).
 
     Returns:
-        A LazyFrame with fuzzy matching scores
+        pl.LazyFrame: A LazyFrame containing the original data plus a similarity score column 's'
+                     with values between 0-1, where 1 represents perfect similarity.
+                     Only rows meeting the threshold criteria are included.
+
+    Notes:
+        - Strings are normalized to lowercase before comparison for case-insensitive matching
+        - jaro_winkler algorithm doesn't use the normalized parameter unlike other algorithms
+        - Distance scores are converted to similarity scores using (1 - distance)
+        - Results are filtered to only include matches above the specified threshold
     """
+    mapping_table = mapping_table.with_columns(
+        pl.col(left_col_name).str.to_lowercase().alias("left"),
+        pl.col(right_col_name).str.to_lowercase().alias("right")
+    )
     mapping_table = mapping_table.with_columns(
         pl.col(left_col_name).str.to_lowercase().alias("left"), pl.col(right_col_name).str.to_lowercase().alias("right")
     )
@@ -41,20 +60,36 @@ def calculate_fuzzy_score(
 
 
 def process_fuzzy_frames(
-    left_df: pl.LazyFrame, right_df: pl.LazyFrame, left_col_name: str, right_col_name: str, temp_dir_ref: str
-):
+    left_df: pl.LazyFrame, right_df: pl.LazyFrame, left_col_name: str, right_col_name: str, temp_dir_ref: str):
     """
-    Process left and right data frames to create fuzzy frames,
-    cache them temporarily, and adjust based on their lengths.
+    Process and optimize dataframes for fuzzy matching by creating grouped representations.
+
+    This function prepares dataframes for fuzzy matching by grouping rows by the matching
+    columns and aggregating their indices. It also optimizes the operation by ensuring
+    the smaller dataset is used as the left frame to minimize computational complexity.
 
     Args:
-    - left_df (pl.DataFrame): The left data frame.
-    - right_df (pl.DataFrame): The right data frame.
-    - fm (object): An object containing configuration such as the left column name.
-    - temp_dir_ref (str): A reference to the temporary directory for caching frames.
+        left_df (pl.LazyFrame): The left dataframe containing records to be matched.
+        right_df (pl.LazyFrame): The right dataframe containing records to be matched against.
+        left_col_name (str): Column name from the left dataframe to use for matching.
+        right_col_name (str): Column name from the right dataframe to use for matching.
+        temp_dir_ref (str): Reference to the temporary directory for caching intermediate results.
 
     Returns:
-    - Tuple[pl.DataFrame, pl.DataFrame, str, str]: Processed left and right fuzzy frames and their respective column names.
+        tuple[pl.LazyFrame, pl.LazyFrame, str, str, int, int]: A tuple containing:
+            - left_fuzzy_frame: Processed and cached left dataframe grouped by matching column
+            - right_fuzzy_frame: Processed and cached right dataframe grouped by matching column
+            - left_col_name: Final left column name (may be swapped for optimization)
+            - right_col_name: Final right column name (may be swapped for optimization)
+            - len_left_df: Number of unique values in the left matching column
+            - len_right_df: Number of unique values in the right matching column
+
+    Notes:
+        - Groups each dataframe by the matching column and aggregates row indices
+        - Filters out null values to ensure clean matching data
+        - Automatically swaps left/right frames if the right frame is smaller for optimization
+        - Caches intermediate results to temporary storage to avoid recomputation
+        - The returned lengths represent unique value counts, not row counts
     """
 
     # Process left and right data frames
@@ -87,17 +122,33 @@ def calculate_and_parse_fuzzy(
     th_score: float,
 ) -> pl.LazyFrame:
     """
-    Calculate fuzzy scores and parse/explode the results for further processing.
+    Calculate fuzzy similarity scores and explode aggregated results for row-level matching.
+
+    This function combines fuzzy score calculation with result parsing to transform
+    grouped/aggregated data back into individual row-level matches. It's particularly
+    useful when working with pre-grouped data that needs to be expanded back to
+    individual record pairs.
 
     Args:
-        mapping_table: The DataFrame containing columns to compare
-        left_col_name: Name of the left column for comparison
-        right_col_name: Name of the right column for comparison
-        fuzzy_method: Type of fuzzy matching algorithm to use
-        th_score: Minimum similarity score threshold (0-1)
+        mapping_table (pl.LazyFrame): DataFrame containing grouped data with columns to compare
+                                    and aggregated index lists (__left_index, __right_index).
+        left_col_name (str): Name of the left column for fuzzy comparison.
+        right_col_name (str): Name of the right column for fuzzy comparison.
+        fuzzy_method (FuzzyTypeLiteral): Fuzzy matching algorithm to use for similarity calculation.
+        th_score (float): Minimum similarity threshold (0-1 scale, lower = more strict).
 
     Returns:
-        A LazyFrame with exploded indices and fuzzy scores
+        pl.LazyFrame: DataFrame with exploded individual matches containing:
+            - 's': Similarity score (0-1, where 1 is perfect match)
+            - '__left_index': Individual row index from left dataframe
+            - '__right_index': Individual row index from right dataframe
+
+    Notes:
+        - First calculates fuzzy scores using the specified algorithm and threshold
+        - Then explodes the aggregated index lists to create individual row pairs
+        - Each row in the result represents a potential match between specific records
+        - The explode operations convert list columns back to individual rows
+        - Only matches exceeding the similarity threshold are included
     """
     return (
         calculate_fuzzy_score(mapping_table, left_col_name, right_col_name, fuzzy_method, th_score)

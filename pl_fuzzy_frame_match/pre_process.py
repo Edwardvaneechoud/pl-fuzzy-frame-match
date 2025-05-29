@@ -45,13 +45,22 @@ def calculate_uniqueness(a: float, b: float) -> float:
 
 def calculate_df_len(df: pl.LazyFrame) -> int:
     """
-    Calculate the number of rows in a LazyFrame.
+    Calculate the number of rows in a LazyFrame efficiently.
+
+    This function provides a simple way to get the row count from a LazyFrame
+    without collecting the entire dataset into memory, making it suitable for
+    large datasets where full materialization would be expensive.
 
     Args:
-        df (pl.LazyFrame): Input LazyFrame.
+        df (pl.LazyFrame): Input LazyFrame to count rows for.
 
     Returns:
         int: Number of rows in the LazyFrame.
+
+    Notes:
+        - Uses lazy evaluation to count rows without materializing the full dataset
+        - More memory-efficient than collecting the entire LazyFrame first
+        - Essential for preprocessing decisions in fuzzy matching operations
     """
     return collect_lazy_frame(df.select(pl.len()))[0, 0]
 
@@ -162,14 +171,23 @@ def aggregate_output(
 
 def report_on_order_of_fuzzy_maps(fuzzy_maps: List[FuzzyMapping], logger: Logger) -> None:
     """
-    Log the order of fuzzy mappings based on uniqueness.
-    Parameters
-    ----------
-    fuzzy_maps: List[FuzzyMapping]
-    logger: Logger
+    Log the ordered list of fuzzy mappings based on their uniqueness scores.
 
-    -------
+    This function provides visibility into how fuzzy mappings are prioritized
+    during the matching process. Higher uniqueness scores indicate columns
+    that are more selective and thus processed first for better performance.
+
+    Args:
+        fuzzy_maps (List[FuzzyMapping]): List of fuzzy mappings sorted by uniqueness.
+        logger (Logger): Logger instance for outputting the mapping order information.
+
+    Notes:
+        - Mappings are logged in order of processing priority (highest uniqueness first)
+        - Helps with debugging and understanding the optimization strategy
+        - Uniqueness scores guide the order of fuzzy matching operations
+        - Higher uniqueness means fewer potential matches and better performance
     """
+
     logger.info("Fuzzy mappings sorted by uniqueness")
     for i, fuzzy_map in enumerate(fuzzy_maps):
         logger.info(

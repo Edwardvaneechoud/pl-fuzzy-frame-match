@@ -17,17 +17,27 @@ def ensure_left_is_larger(
     left_df: pl.DataFrame, right_df: pl.DataFrame, left_col_name: str, right_col_name: str
 ) -> tuple:
     """
-    Ensures that the left dataframe is always the larger one.
-    If the right dataframe is larger, swaps them.
+    Optimize join performance by ensuring the larger dataframe is always on the left.
+
+    This function swaps dataframes and their corresponding column names if the right
+    dataframe is larger than the left. This optimization improves performance in
+    join operations where the larger dataset benefits from being the primary table.
 
     Args:
-        left_df: The left dataframe
-        right_df: The right dataframe
-        left_col_name: Column name for the left dataframe
-        right_col_name: Column name for the right dataframe
+        left_df (pl.DataFrame): The left dataframe to potentially swap.
+        right_df (pl.DataFrame): The right dataframe to potentially swap.
+        left_col_name (str): Column name associated with the left dataframe.
+        right_col_name (str): Column name associated with the right dataframe.
 
     Returns:
-        tuple: (left_df, right_df, left_col_name, right_col_name)
+        tuple: A 4-tuple containing (left_df, right_df, left_col_name, right_col_name)
+               where the dataframes and column names may have been swapped to ensure
+               the left dataframe is the larger one.
+
+    Notes:
+        - Performance optimization technique for asymmetric join operations
+        - Column names are swapped along with dataframes to maintain consistency
+        - Uses row count as the size metric for comparison
     """
     left_frame_len = left_df.select(pl.len())[0, 0]
     right_frame_len = right_df.select(pl.len())[0, 0]
@@ -41,14 +51,29 @@ def ensure_left_is_larger(
 
 def split_dataframe(df: pl.DataFrame, max_chunk_size: int = 500_000) -> List[pl.DataFrame]:
     """
-    Split a Polars DataFrame into multiple DataFrames with a maximum size.
+    Split a large Polars DataFrame into smaller chunks for memory-efficient processing.
+
+    This function divides a DataFrame into multiple smaller DataFrames to enable
+    batch processing of large datasets that might not fit in memory or would
+    cause performance issues when processed as a single unit.
 
     Args:
-        df: The Polars DataFrame to split
-        max_chunk_size: Maximum number of rows per chunk (default: 500,000)
+        df (pl.DataFrame): The Polars DataFrame to split into chunks.
+        max_chunk_size (int, optional): Maximum number of rows per chunk. Defaults to 500,000.
+                                       Larger chunks use more memory but may be more efficient,
+                                       while smaller chunks are more memory-friendly.
 
     Returns:
-        List of Polars DataFrames, each containing at most max_chunk_size rows
+        List[pl.DataFrame]: A list of DataFrames, each containing at most max_chunk_size rows.
+                           If the input DataFrame has fewer rows than max_chunk_size,
+                           returns a list with the original DataFrame as the only element.
+
+    Notes:
+        - Uses ceiling division to ensure all rows are included in chunks
+        - The last chunk may contain fewer rows than max_chunk_size
+        - Maintains row order across chunks
+        - Memory usage scales with chunk size - adjust based on available system memory
+        - Useful for processing datasets that exceed available RAM
     """
     total_rows = df.select(pl.len())[0, 0]
 
@@ -78,6 +103,35 @@ def cross_join_large_files(
     right_col_name: str,
     logger: Logger,
 ) -> pl.LazyFrame:
+    """
+     Perform approximate similarity joins on large datasets using polars-simed.
+
+     This function handles fuzzy matching for large datasets by using approximate
+     nearest neighbor techniques to reduce the computational complexity from O(n*m)
+     to something more manageable. It processes data in chunks to manage memory usage.
+
+     Args:
+         left_fuzzy_frame (pl.LazyFrame): Left dataframe for matching.
+         right_fuzzy_frame (pl.LazyFrame): Right dataframe for matching.
+         left_col_name (str): Column name from left dataframe to use for similarity matching.
+         right_col_name (str): Column name from right dataframe to use for similarity matching.
+         logger (Logger): Logger instance for progress tracking and debugging.
+
+     Returns:
+         pl.LazyFrame: A LazyFrame containing approximate matches between the datasets.
+                      Returns an empty DataFrame with null schema if no matches found.
+
+     Raises:
+         Exception: If polars-simed library is not available (HAS_POLARS_SIM is False).
+
+     Notes:
+         - Requires polars-simed library for approximate matching functionality
+         - Automatically ensures larger dataframe is used as the left frame for optimization
+         - Processes left dataframe in chunks of 500,000 rows to manage memory
+         - Uses top_n=100 to limit matches per record for performance
+         - Combines results from all chunks into a single output
+         - Falls back to empty result if processing fails rather than crashing
+     """
     if not HAS_POLARS_SIM:
         raise Exception("The polars-sim library is required to perform this operation.")
 
@@ -113,6 +167,26 @@ def cross_join_large_files(
 
 
 def cross_join_small_files(left_df: pl.LazyFrame, right_df: pl.LazyFrame) -> pl.LazyFrame:
+    """
+    Perform a simple cross join for small datasets.
+
+    This function creates a cartesian product of two dataframes, suitable for
+    small datasets where the resulting join size is manageable in memory.
+
+    Args:
+        left_df (pl.LazyFrame): Left dataframe for cross join.
+        right_df (pl.LazyFrame): Right dataframe for cross join.
+
+    Returns:
+        pl.LazyFrame: The cross-joined result containing all combinations of rows
+                     from both input dataframes.
+
+    Notes:
+        - Creates a cartesian product (every row from left × every row from right)
+        - Only suitable for small datasets due to explosive growth in result size
+        - For datasets of size n and m, produces n*m rows in the result
+        - Should be used when approximate matching is not needed or available
+    """
     return left_df.join(right_df, how="cross")
 
 
@@ -302,6 +376,26 @@ def combine_matches(matching_dfs: List[pl.LazyFrame]):
 
 
 def add_index_column(df: pl.LazyFrame, column_name: str, tempdir: str):
+    """
+    Add a row index column to a dataframe and cache it to temporary storage.
+
+    This function adds a sequential row index to track original row positions
+    throughout fuzzy matching operations, then caches the result for efficient reuse.
+
+    Args:
+        df (pl.LazyFrame): The dataframe to add an index column to.
+        column_name (str): Name for the new index column (e.g., '__left_index').
+        tempdir (str): Temporary directory path for caching the indexed dataframe.
+
+    Returns:
+        pl.LazyFrame: A LazyFrame with the added index column, cached to temporary storage.
+
+    Notes:
+        - Index column contains sequential integers starting from 0
+        - Caching prevents recomputation during complex multi-step operations
+        - Index columns are essential for tracking row relationships in fuzzy matching
+        - The cached dataframe can be reused multiple times without recalculation
+    """
     return cache_polars_frame_to_temp(df.with_row_index(name=column_name), tempdir)
 
 

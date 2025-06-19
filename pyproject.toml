@@ -4,7 +4,7 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.poetry]
 name = "pl-fuzzy-frame-match"
-version = "0.1.1"
+version = "0.1.2"
 description = "Efficient fuzzy matching for Polars DataFrames with support for multiple string similarity algorithms"
 authors = ["Edward van Eechoud <evaneechoud@gmail.com>"]
 license = "MIT"

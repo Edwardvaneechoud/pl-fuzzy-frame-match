@@ -100,6 +100,7 @@ def cross_join_large_files(
     left_col_name: str,
     right_col_name: str,
     logger: Logger,
+    top_n: int = 500
 ) -> pl.LazyFrame:
     """
     Perform approximate similarity joins on large datasets using polars-simed.
@@ -114,6 +115,7 @@ def cross_join_large_files(
         left_col_name (str): Column name from left dataframe to use for similarity matching.
         right_col_name (str): Column name from right dataframe to use for similarity matching.
         logger (Logger): Logger instance for progress tracking and debugging.
+        top_n (int): The maximum number of similar items to return for each item for pre-filtering. Defaults to 500
 
     Returns:
         pl.LazyFrame: A LazyFrame containing approximate matches between the datasets.
@@ -123,7 +125,6 @@ def cross_join_large_files(
         - Requires polars-simed library for approximate matching functionality
         - Automatically ensures larger dataframe is used as the left frame for optimization
         - Processes left dataframe in chunks of 500,000 rows to manage memory
-        - Uses top_n=100 to limit matches per record for performance
         - Combines results from all chunks into a single output
         - Falls back to empty result if processing fails rather than crashing
     """
@@ -144,7 +145,7 @@ def cross_join_large_files(
             right=right_df,
             left_on=left_col_name,
             right_on=right_col_name,
-            top_n=500,
+            top_n=top_n,
             add_similarity=False,
         )
         logger.info(f"Processed chunk {int(i)} with {len(chunk_matches)} matches.")
@@ -243,6 +244,8 @@ def cross_join_no_existing_fuzzy_results(
     temp_dir_ref: str,
     logger: Logger,
     use_appr_nearest_neighbor: bool | None = None,
+    top_n: int = 500,
+    cross_over_for_appr_nearest_neighbor: int =  100_000_000,
 ) -> pl.LazyFrame:
     """
     Generate fuzzy matching results by performing a cross join between dataframes.
@@ -268,6 +271,18 @@ def cross_join_no_existing_fuzzy_results(
         - If True, forces the use of approximate nearest neighbor join (polars_simed) if available.
         - If False, forces the use of a standard cross join.
         - If None (default), an automatic selection based on cartesian_size is done.
+    top_n: int, optional
+        When using approximate nearest neighbor (`polars-simed`), this parameter specifies the
+        maximum number of most similar items to return for each item during the pre-filtering
+        stage. It helps control the size of the candidate set for more detailed fuzzy matching.
+        Defaults to 500.
+    cross_over_for_appr_nearest_neighbor: int, optional
+        Sets the threshold for the cartesian product size at which the function will
+        automatically switch from a standard cross join to an approximate nearest neighbor join.
+        This is only active when `use_appr_nearest_neighbor` is `None`. The cartesian product
+        is the number of rows in the left dataframe multiplied by the number of rows in the right.
+        Defaults to 100,000,000.
+
     Returns:
     --------
     pl.LazyFrame
@@ -304,7 +319,7 @@ def cross_join_no_existing_fuzzy_results(
     if cartesian_size > max_size:
         logger.error(f"The cartesian product of the two dataframes is too large to process: {cartesian_size}")
         raise Exception("The cartesian product of the two dataframes is too large to process.")
-    if (cartesian_size > 100_000_000 and use_appr_nearest_neighbor is None) or use_appr_nearest_neighbor:
+    if (cartesian_size > cross_over_for_appr_nearest_neighbor and use_appr_nearest_neighbor is None) or use_appr_nearest_neighbor:
         logger.info("Performing approximate fuzzy match for large dataframes to reduce memory usage.")
         cross_join_frame = cross_join_large_files(
             left_fuzzy_frame,
@@ -312,6 +327,7 @@ def cross_join_no_existing_fuzzy_results(
             left_col_name=left_col_name,
             right_col_name=right_col_name,
             logger=logger,
+            top_n=top_n,
         )
     else:
         cross_join_frame = cross_join_small_files(left_fuzzy_frame, right_fuzzy_frame)
@@ -395,31 +411,43 @@ def add_index_column(df: pl.LazyFrame, column_name: str, tempdir: str) -> pl.Laz
 
 
 def process_fuzzy_mapping(
-    fuzzy_map: FuzzyMapping,
-    left_df: pl.LazyFrame,
-    right_df: pl.LazyFrame,
-    existing_matches: pl.LazyFrame | None,
-    local_temp_dir_ref: str,
-    i: int,
-    logger: Logger,
-    existing_number_of_matches: int | None = None,
-    use_appr_nearest_neighbor_for_new_matches: bool | None = None,
+        fuzzy_map: FuzzyMapping,
+        left_df: pl.LazyFrame,
+        right_df: pl.LazyFrame,
+        existing_matches: pl.LazyFrame | None,
+        local_temp_dir_ref: str,
+        i: int,
+        logger: Logger,
+        existing_number_of_matches: int | None = None,
+        use_appr_nearest_neighbor_for_new_matches: bool | None = None,
+        top_n: int = 500,
+        cross_over_for_appr_nearest_neighbor: int = 100_000_000,
 ) -> tuple[pl.LazyFrame, int | None]:
     """
     Process a single fuzzy mapping to generate matching dataframes.
 
     Args:
-        fuzzy_map: The fuzzy mapping configuration containing match columns and thresholds
-        left_df: Left dataframe with index column
-        right_df: Right dataframe with index column
-        existing_matches: Previously computed matches (or None)
-        local_temp_dir_ref: Temporary directory reference for caching interim results
-        i: Index of the current fuzzy mapping
-        logger: Logger instance for progress tracking
-        existing_number_of_matches: Number of existing matches (if available)
-        use_appr_nearest_neighbor_for_new_matches: Optimize for larger dataframes
+        fuzzy_map: The fuzzy mapping configuration containing match columns and thresholds.
+        left_df: Left dataframe with index column.
+        right_df: Right dataframe with index column.
+        existing_matches: Previously computed matches (or None). If provided, this function
+                          will only calculate scores for these existing pairs.
+        local_temp_dir_ref: Temporary directory reference for caching interim results.
+        i: Index of the current fuzzy mapping, used for naming the score column.
+        logger: Logger instance for progress tracking.
+        existing_number_of_matches: Number of existing matches (if available).
+        use_appr_nearest_neighbor_for_new_matches: Controls join strategy when `existing_matches` is None.
+                                                   See `cross_join_no_existing_fuzzy_results` for details.
+        top_n (int, optional):
+            When no `existing_matches` are provided, this value is passed to the approximate
+            nearest neighbor join to specify the max number of similar items to find for each record.
+            Defaults to 500.
+        cross_over_for_appr_nearest_neighbor (int, optional):
+            When no `existing_matches` are provided, this sets the cartesian product size threshold for
+            automatically switching to the approximate join method. Defaults to 100,000,000.
+
     Returns:
-        tuple[pl.LazyFrame, int]: The final matching dataframe and the number of matches
+        tuple[pl.LazyFrame, int]: The final matching dataframe and the number of matches.
     """
     # Determine join strategy based on existing matches
     if existing_matches is not None:
@@ -442,6 +470,8 @@ def process_fuzzy_mapping(
             temp_dir_ref=local_temp_dir_ref,
             logger=logger,
             use_appr_nearest_neighbor=use_appr_nearest_neighbor_for_new_matches,
+            top_n=top_n,
+            cross_over_for_appr_nearest_neighbor=cross_over_for_appr_nearest_neighbor
         )
 
     # Calculate fuzzy match scores
@@ -471,6 +501,8 @@ def perform_all_fuzzy_matches(
     logger: Logger,
     local_temp_dir_ref: str,
     use_appr_nearest_neighbor_for_new_matches: bool | None = None,
+    top_n_for_new_matches: int = 500,
+    cross_over_for_appr_nearest_neighbor: int = 100_000_000,
 ) -> list[pl.LazyFrame]:
     """
     Iteratively processes a list of fuzzy mapping configurations to find matches between two dataframes.
@@ -492,12 +524,19 @@ def perform_all_fuzzy_matches(
                                   for large datasets.
         use_appr_nearest_neighbor_for_new_matches (Optional[bool], optional):
             Controls the join strategy for generating initial candidate pairs when no
-            `existing_matches` are provided to `process_fuzzy_mapping`.
-            - If True, forces the use of approximate nearest neighbor join (polars_simed).
+            `existing_matches` are provided.
+            - If True, forces the use of approximate nearest neighbor join.
             - If False, forces the use of a standard cross join.
-            - If None (default), an automatic selection based on data size and polars_simed
-              availability occurs within `cross_join_no_existing_fuzzy_results`.
+            - If None (default), an automatic selection based on data size occurs.
             Defaults to None.
+        top_n_for_new_matches (int, optional):
+            When generating new matches using the approximate nearest neighbor method, this
+            specifies the max number of similar items to return for each item.
+            Only applies when no existing matches are being filtered. Defaults to 500.
+        cross_over_for_appr_nearest_neighbor (int, optional):
+            Sets the cartesian product size threshold for automatically switching to the
+            approximate nearest neighbor join method when `use_appr_nearest_neighbor_for_new_matches`
+            is None. Defaults to 100,000,000.
 
     Returns:
         list[pl.LazyFrame]: A list of Polars LazyFrames. Each LazyFrame in the list
@@ -522,6 +561,8 @@ def perform_all_fuzzy_matches(
             logger=logger,
             existing_number_of_matches=existing_number_of_matches,
             use_appr_nearest_neighbor_for_new_matches=use_appr_nearest_neighbor_for_new_matches,
+            top_n=top_n_for_new_matches,
+            cross_over_for_appr_nearest_neighbor=cross_over_for_appr_nearest_neighbor
         )
         matching_dfs.append(existing_matches)
     return matching_dfs
@@ -533,18 +574,38 @@ def fuzzy_match_dfs(
     fuzzy_maps: list[FuzzyMapping],
     logger: Logger,
     use_appr_nearest_neighbor_for_new_matches: bool | None = None,
+    top_n_for_new_matches: int = 500,
+    cross_over_for_appr_nearest_neighbor: int = 100_000_000,
 ) -> pl.DataFrame:
     """
     Perform fuzzy matching between two dataframes using multiple fuzzy mapping configurations.
 
+    This is the main entry point function that orchestrates the entire fuzzy matching process,
+    from pre-processing and indexing to matching and final joining.
+
     Args:
-        left_df: Left dataframe to be matched
-        right_df: Right dataframe to be matched
-        fuzzy_maps: list of fuzzy mapping configurations
-        logger: Logger instance for tracking progress
-        use_appr_nearest_neighbor_for_new_matches: Controls join strategy for initial matches (see cross_join_no_existing_fuzzy_results).
+        left_df (pl.LazyFrame): Left dataframe to be matched.
+        right_df (pl.LazyFrame): Right dataframe to be matched.
+        fuzzy_maps (list[FuzzyMapping]): A list of fuzzy mapping configurations to apply sequentially.
+        logger (Logger): Logger instance for tracking progress.
+        use_appr_nearest_neighbor_for_new_matches (bool | None, optional):
+            Controls the join strategy for generating initial candidate pairs when no prior
+            matches exist.
+            - If True, forces the use of approximate nearest neighbor join.
+            - If False, forces a standard cross join.
+            - If None (default), an automatic selection based on data size is made.
+            Defaults to None.
+        top_n_for_new_matches (int, optional):
+            When generating new matches with the approximate method, this specifies the maximum
+            number of similar items to consider for each record. Defaults to 500.
+        cross_over_for_appr_nearest_neighbor (int, optional):
+            The cartesian product size threshold to automatically switch to the approximate
+            join method when `use_appr_nearest_neighbor_for_new_matches` is None.
+            Defaults to 100,000,000.
+
     Returns:
-        pl.DataFrame: The final matched dataframe with all fuzzy scores
+        pl.DataFrame: The final matched dataframe containing original data from both
+                      dataframes along with all calculated fuzzy scores.
     """
     left_df, right_df, fuzzy_maps = pre_process_for_fuzzy_matching(left_df, right_df, fuzzy_maps, logger)
 
@@ -557,7 +618,14 @@ def fuzzy_match_dfs(
     right_df = add_index_column(right_df, "__right_index", local_temp_dir_ref)
 
     matching_dfs = perform_all_fuzzy_matches(
-        left_df, right_df, fuzzy_maps, logger, local_temp_dir_ref, use_appr_nearest_neighbor_for_new_matches
+        left_df=left_df,
+        right_df=right_df,
+        fuzzy_maps=fuzzy_maps,
+        logger=logger,
+        local_temp_dir_ref=local_temp_dir_ref,
+        use_appr_nearest_neighbor_for_new_matches=use_appr_nearest_neighbor_for_new_matches,
+        top_n_for_new_matches=top_n_for_new_matches,
+        cross_over_for_appr_nearest_neighbor=cross_over_for_appr_nearest_neighbor,
     )
 
     # Combine all matches

@@ -237,15 +237,15 @@ def cross_join_filter_existing_fuzzy_results(
 
 
 def cross_join_no_existing_fuzzy_results(
-        left_df: pl.LazyFrame,
-        right_df: pl.LazyFrame,
-        left_col_name: str,
-        right_col_name: str,
-        temp_dir_ref: str,
-        logger: Logger,
-        use_appr_nearest_neighbor: bool | None = None,
-        top_n: int = 500,
-        cross_over_for_appr_nearest_neighbor: int = 100_000_000,
+    left_df: pl.LazyFrame,
+    right_df: pl.LazyFrame,
+    left_col_name: str,
+    right_col_name: str,
+    temp_dir_ref: str,
+    logger: Logger,
+    use_appr_nearest_neighbor: bool | None = None,
+    top_n: int = 500,
+    cross_over_for_appr_nearest_neighbor: int = 100_000_000,
 ) -> pl.LazyFrame:
     """
     Generate fuzzy matching results by performing a cross join between dataframes.

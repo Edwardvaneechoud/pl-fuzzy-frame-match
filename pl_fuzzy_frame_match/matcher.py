@@ -100,7 +100,7 @@ def cross_join_large_files(
     left_col_name: str,
     right_col_name: str,
     logger: Logger,
-    top_n: int = 500
+    top_n: int = 500,
 ) -> pl.LazyFrame:
     """
     Perform approximate similarity joins on large datasets using polars-simed.
@@ -245,7 +245,7 @@ def cross_join_no_existing_fuzzy_results(
     logger: Logger,
     use_appr_nearest_neighbor: bool | None = None,
     top_n: int = 500,
-    cross_over_for_appr_nearest_neighbor: int =  100_000_000,
+    cross_over_for_appr_nearest_neighbor: int = 100_000_000,
 ) -> pl.LazyFrame:
     """
     Generate fuzzy matching results by performing a cross join between dataframes.
@@ -319,7 +319,9 @@ def cross_join_no_existing_fuzzy_results(
     if cartesian_size > max_size:
         logger.error(f"The cartesian product of the two dataframes is too large to process: {cartesian_size}")
         raise Exception("The cartesian product of the two dataframes is too large to process.")
-    if (cartesian_size > cross_over_for_appr_nearest_neighbor and use_appr_nearest_neighbor is None) or use_appr_nearest_neighbor:
+    if (
+        cartesian_size > cross_over_for_appr_nearest_neighbor and use_appr_nearest_neighbor is None
+    ) or use_appr_nearest_neighbor:
         logger.info("Performing approximate fuzzy match for large dataframes to reduce memory usage.")
         cross_join_frame = cross_join_large_files(
             left_fuzzy_frame,
@@ -411,17 +413,17 @@ def add_index_column(df: pl.LazyFrame, column_name: str, tempdir: str) -> pl.Laz
 
 
 def process_fuzzy_mapping(
-        fuzzy_map: FuzzyMapping,
-        left_df: pl.LazyFrame,
-        right_df: pl.LazyFrame,
-        existing_matches: pl.LazyFrame | None,
-        local_temp_dir_ref: str,
-        i: int,
-        logger: Logger,
-        existing_number_of_matches: int | None = None,
-        use_appr_nearest_neighbor_for_new_matches: bool | None = None,
-        top_n: int = 500,
-        cross_over_for_appr_nearest_neighbor: int = 100_000_000,
+    fuzzy_map: FuzzyMapping,
+    left_df: pl.LazyFrame,
+    right_df: pl.LazyFrame,
+    existing_matches: pl.LazyFrame | None,
+    local_temp_dir_ref: str,
+    i: int,
+    logger: Logger,
+    existing_number_of_matches: int | None = None,
+    use_appr_nearest_neighbor_for_new_matches: bool | None = None,
+    top_n: int = 500,
+    cross_over_for_appr_nearest_neighbor: int = 100_000_000,
 ) -> tuple[pl.LazyFrame, int | None]:
     """
     Process a single fuzzy mapping to generate matching dataframes.
@@ -471,7 +473,7 @@ def process_fuzzy_mapping(
             logger=logger,
             use_appr_nearest_neighbor=use_appr_nearest_neighbor_for_new_matches,
             top_n=top_n,
-            cross_over_for_appr_nearest_neighbor=cross_over_for_appr_nearest_neighbor
+            cross_over_for_appr_nearest_neighbor=cross_over_for_appr_nearest_neighbor,
         )
 
     # Calculate fuzzy match scores
@@ -562,7 +564,7 @@ def perform_all_fuzzy_matches(
             existing_number_of_matches=existing_number_of_matches,
             use_appr_nearest_neighbor_for_new_matches=use_appr_nearest_neighbor_for_new_matches,
             top_n=top_n_for_new_matches,
-            cross_over_for_appr_nearest_neighbor=cross_over_for_appr_nearest_neighbor
+            cross_over_for_appr_nearest_neighbor=cross_over_for_appr_nearest_neighbor,
         )
         matching_dfs.append(existing_matches)
     return matching_dfs

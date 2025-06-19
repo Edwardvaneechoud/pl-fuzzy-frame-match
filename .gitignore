@@ -6,6 +6,7 @@ __pycache__/
 
 # Distribution / packaging
 build/
+docs/_build
 dist/
 *.egg-info/
 sdist/
@@ -70,3 +71,4 @@ ehthumbs.db     # Windows
 *.bak
 *.swp
 *~
+poetry.lock

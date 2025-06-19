@@ -254,8 +254,8 @@ def cross_join_no_existing_fuzzy_results(
     based on the size of the resulting cartesian product, and returns the cross-joined results
     for fuzzy matching when no existing matches are provided.
 
-    Parameters:
-    -----------
+    Parameters
+    ----------
     left_df : pl.LazyFrame
         The left dataframe containing records to be matched.
     right_df : pl.LazyFrame
@@ -267,43 +267,45 @@ def cross_join_no_existing_fuzzy_results(
     temp_dir_ref : str
         Reference to a temporary directory where intermediate results can be stored
         during processing of large dataframes.
-    use_appr_nearest_neighbor : Optional[bool]
-        - If True, forces the use of approximate nearest neighbor join (polars_simed) if available.
-        - If False, forces the use of a standard cross join.
-        - If None (default), an automatic selection based on cartesian_size is done.
-    top_n: int, optional
+    use_appr_nearest_neighbor : bool | None
+        If True, forces the use of approximate nearest neighbor join (polars_simed) if available.
+        If False, forces the use of a standard cross join.
+        If None (default), an automatic selection based on cartesian_size is done.
+    top_n : int, optional
         When using approximate nearest neighbor (`polars-simed`), this parameter specifies the
         maximum number of most similar items to return for each item during the pre-filtering
         stage. It helps control the size of the candidate set for more detailed fuzzy matching.
         Defaults to 500.
-    cross_over_for_appr_nearest_neighbor: int, optional
+    cross_over_for_appr_nearest_neighbor : int, optional
         Sets the threshold for the cartesian product size at which the function will
         automatically switch from a standard cross join to an approximate nearest neighbor join.
         This is only active when `use_appr_nearest_neighbor` is `None`. The cartesian product
         is the number of rows in the left dataframe multiplied by the number of rows in the right.
         Defaults to 100,000,000.
 
-    Returns:
-    --------
+    Returns
+    -------
     pl.LazyFrame
         A dataframe containing the cross join results of left_df and right_df,
         prepared for fuzzy matching operations.
 
-    Notes:
-    ------
+    Notes
+    -----
     The function performs these operations:
-    1. Processes input frames using the process_fuzzy_frames helper function
-    2. Calculates the size of the cartesian product to determine processing approach
-    3. Uses either cross_join_large_files or cross_join_small_files based on the size:
-       - For cartesian products > 100M but < 1T (or 10M without polars-sim), uses large file method
-       - For smaller products, uses the small file method
-    4. Raises an exception if the cartesian product exceeds the maximum allowed size
 
-    Raises:
-    -------
+    1. Processes input frames using the process_fuzzy_frames helper function.
+    2. Calculates the size of the cartesian product to determine processing approach.
+    3. Uses either cross_join_large_files or cross_join_small_files based on the size:
+       - For cartesian products > 100M but < 1T (or 10M without polars-sim), uses large file method.
+       - For smaller products, uses the small file method.
+    4. Raises an exception if the cartesian product exceeds the maximum allowed size.
+
+    Raises
+    ------
     Exception
         If the cartesian product of the two dataframes exceeds the maximum allowed size
         (1 trillion with polars-sim, 100 million without).
+
     """
     (left_fuzzy_frame, right_fuzzy_frame, left_col_name, right_col_name, len_left_df, len_right_df) = (
         process_fuzzy_frames(

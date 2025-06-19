@@ -104,7 +104,9 @@ autodoc_default_options = {
 }
 autodoc_typehints = 'description'
 autodoc_mock_imports = []
-
+python_type_aliases = {
+    'FuzzyMapping': 'pl_fuzzy_frame_match.models.FuzzyMapping',
+}
 # Intersphinx mapping
 intersphinx_mapping = {
     'python': ('https://docs.python.org/3', None),

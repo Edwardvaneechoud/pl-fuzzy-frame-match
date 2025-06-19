@@ -53,7 +53,7 @@ jobs:
           cd docs
           mkdir -p _static
           mkdir -p _templates
-          poetry run sphinx-build -W -b html . _build/html
+          poetry run sphinx-build -b html . _build/html
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3

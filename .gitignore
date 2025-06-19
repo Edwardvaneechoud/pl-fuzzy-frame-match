@@ -71,3 +71,4 @@ ehthumbs.db     # Windows
 *.bak
 *.swp
 *~
+poetry.lock

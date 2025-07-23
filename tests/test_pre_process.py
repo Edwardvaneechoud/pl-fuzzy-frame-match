@@ -428,4 +428,3 @@ def test_rename_fuzzy_mapping_no_overlaps():
     assert updated_maps[0].right_col == "company_name"
     assert updated_maps[1].right_col == "location"
     assert updated_maps[2].right_col == "ceo"
-

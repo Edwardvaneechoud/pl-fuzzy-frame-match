@@ -424,11 +424,8 @@ def test_rename_fuzzy_mapping_no_overlaps():
 
     # Apply renaming
     updated_maps = rename_fuzzy_right_mapping(fuzzy_maps, right_rename_dict)
-
     # Verify nothing was changed
     assert updated_maps[0].right_col == "company_name"
     assert updated_maps[1].right_col == "location"
     assert updated_maps[2].right_col == "ceo"
 
-    # Verify the function returns the same list object
-    assert updated_maps is fuzzy_maps

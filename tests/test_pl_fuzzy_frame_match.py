@@ -380,13 +380,13 @@ def test_fuzzy_match_dfs_equal_column_names(logger):
     expected_match_data = pl.DataFrame(
         {
             "id": [1, 2, 3, 4, 5],
-            "company_name": ["Apple Inc.", "Microsft", "Amazon", "Gogle", "Facebok"],
+            "organization": ["Apple Inc.", "Microsft", "Amazon", "Gogle", "Facebok"],
             "address": ["1 Apple Park", "One Microsoft Way", "410 Terry Ave N", "1600 Amphitheatre", "1 Hacker Way"],
             "contact": ["Tim Cook", "Satya Ndella", "Andy Jessy", "Sundar Pichai", "Mark Zukerberg"],
             "fuzzy_score_0": [0.88, 0.9142857142857143, 0.8857142857142858, 0.8666666666666667, 0.9166666666666667],
             "fuzzy_score_1": [0.6666666666666667, 0.9230769230769231, 0.9, 1.0, 0.9333333333333333],
             "id_right": [101, 102, 103, 104, 105],
-            "right_company_name":
+            "organization_right":
                 ["Apple Incorporated", "Microsoft Corp", "Amazon.com Inc", "Google LLC", "Facebook Inc"],
             "location": [
                 "Apple Park, Cupertino",

@@ -43,9 +43,6 @@ def calculate_fuzzy_score(
     mapping_table = mapping_table.with_columns(
         pl.col(left_col_name).str.to_lowercase().alias("left"), pl.col(right_col_name).str.to_lowercase().alias("right")
     )
-    mapping_table = mapping_table.with_columns(
-        pl.col(left_col_name).str.to_lowercase().alias("left"), pl.col(right_col_name).str.to_lowercase().alias("right")
-    )
     dist_col = pld.DistancePairWiseString(pl.col("left"))
     if fuzzy_method in ("jaro_winkler"):
         fm_method = getattr(dist_col, fuzzy_method)(pl.col("right")).alias("s")
@@ -92,7 +89,6 @@ def process_fuzzy_frames(
         - Caches intermediate results to temporary storage to avoid recomputation
         - The returned lengths represent unique value counts, not row counts
     """
-
     # Process left and right data frames
     left_fuzzy_frame = cache_polars_frame_to_temp(
         left_df.group_by(left_col_name).agg("__left_index").filter(pl.col(left_col_name).is_not_null()), temp_dir_ref

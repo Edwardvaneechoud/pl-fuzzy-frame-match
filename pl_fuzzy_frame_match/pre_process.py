@@ -195,6 +195,83 @@ def report_on_order_of_fuzzy_maps(fuzzy_maps: list[FuzzyMapping], logger: Logger
         )
 
 
+def get_rename_right_columns_to_ensure_no_overlap(
+        left_df: pl.LazyFrame, right_df: pl.LazyFrame, suffix: str = "_right"
+) -> dict[str, str]:
+    """
+    Compute column renaming mapping to ensure no overlap between dataframes.
+
+    This function calculates which columns in right_df need to be renamed to avoid
+    conflicts with column names in left_df or with other columns in right_df itself.
+    The actual renaming is left to the caller.
+
+    Args:
+        left_df (pl.LazyFrame): Left dataframe whose column names to avoid.
+        right_df (pl.LazyFrame): Right dataframe whose columns may need renaming.
+        suffix (str): Suffix to append when renaming columns. Defaults to "_right".
+
+    Returns:
+        dict[str, str]: Dictionary mapping original column names to new names.
+                       Only contains entries for columns that need renaming.
+
+    Raises:
+        ValueError: If suffix is empty.
+
+    Examples:
+        >>> left = pl.DataFrame({"id": [1], "name": [2]}).lazy()
+        >>> right = pl.DataFrame({"id": [3], "value": [4]}).lazy()
+        >>> mapping = rename_columns_no_overlap(left, right)
+        >>> mapping
+        {'id': 'id_right'}
+        >>> right_renamed = right.rename(mapping)
+    """
+    if len(suffix) == 0:
+        raise ValueError("Suffix must not be empty")
+
+    left_cols = set(left_df.columns)
+    right_cols = set(right_df.columns)
+
+    # Track all column names that must be avoided
+    reserved_names = left_cols.union(right_cols)
+
+    renamed_mapping: dict[str, str] = {}
+
+    for col in right_df.columns:
+        if col not in left_cols:
+            continue  # No conflict, no rename needed
+
+        new_col = col
+        # Keep adding suffix until we find a non-conflicting name
+        while new_col in reserved_names:
+            new_col = new_col + suffix
+
+        renamed_mapping[col] = new_col
+        # Reserve this new name to prevent future conflicts
+        reserved_names.add(new_col)
+
+    return renamed_mapping
+
+
+def rename_fuzzy_right_mapping(fuzzy_maps: list[FuzzyMapping], right_rename_dict: dict[str, str]) -> None:
+    """
+    Rename the right column names in fuzzy mappings based on a provided mapping.
+
+    This function updates the right_col attribute of each FuzzyMapping object
+    to reflect the new names after renaming columns in the right dataframe.
+
+    Args:
+        fuzzy_maps (list[FuzzyMapping]): List of fuzzy mappings to update.
+        right_rename_dict (dict[str, str]): Dictionary mapping original right column names to new names.
+
+    Returns:
+        None: The function modifies the fuzzy_maps in place.
+    """
+    for fuzzy_map in fuzzy_maps:
+        new_right_name = right_rename_dict.get(fuzzy_map.right_col)
+        if new_right_name:
+            fuzzy_map.right_col = new_right_name
+
+
 def pre_process_for_fuzzy_matching(
     left_df: pl.LazyFrame, right_df: pl.LazyFrame, fuzzy_maps: list[FuzzyMapping], logger: Logger
 ) -> tuple[pl.LazyFrame, pl.LazyFrame, list[FuzzyMapping]]:
@@ -238,4 +315,6 @@ def pre_process_for_fuzzy_matching(
         )
         left_df, right_df = aggregate_output(left_df, right_df, fuzzy_maps)
     logger.info("Data and settings optimized for fuzzy matching")
-    return left_df, right_df, fuzzy_maps
+    right_rename_dict = get_rename_right_columns_to_ensure_no_overlap(left_df, right_df)
+    rename_fuzzy_right_mapping(fuzzy_maps, right_rename_dict)
+    return left_df, right_df.rename(right_rename_dict), fuzzy_maps

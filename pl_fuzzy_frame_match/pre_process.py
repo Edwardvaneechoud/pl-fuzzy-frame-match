@@ -197,7 +197,7 @@ def report_on_order_of_fuzzy_maps(fuzzy_maps: list[FuzzyMapping], logger: Logger
 
 
 def get_rename_right_columns_to_ensure_no_overlap(
-        left_df: pl.LazyFrame, right_df: pl.LazyFrame, suffix: str = "_right"
+    left_df: pl.LazyFrame, right_df: pl.LazyFrame, suffix: str = "_right"
 ) -> dict[str, str]:
     """
     Compute column renaming mapping to ensure no overlap between dataframes.

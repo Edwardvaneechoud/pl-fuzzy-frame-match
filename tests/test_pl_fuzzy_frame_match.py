@@ -366,10 +366,14 @@ def test_fuzzy_match_dfs(logger):
 def test_fuzzy_match_dfs_equal_column_names(logger):
     left_df, right_df, mapping = generate_small_fuzzy_test_data()
     left_df = left_df.rename({"company_name": "organization"})
-
     mapping[0].left_col = "organization"
     mapping[0].right_col = "organization"
-
+    assert (fuzzy_match_dfs(
+        left_df.lazy(),
+        right_df.lazy(),
+        [mapping[0]],
+        logger).select("fuzzy_score_0").unique().select(pl.len())[0,0])>1,\
+        "Expected multiple matches for equal column names"
     result = fuzzy_match_dfs(left_df.lazy(), right_df.lazy(), mapping, logger)
     result = result.sort("id")
     assert result is not None

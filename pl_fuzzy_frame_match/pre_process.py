@@ -1,3 +1,4 @@
+from copy import copy
 from logging import Logger
 from typing import cast
 
@@ -252,7 +253,7 @@ def get_rename_right_columns_to_ensure_no_overlap(
     return renamed_mapping
 
 
-def rename_fuzzy_right_mapping(fuzzy_maps: list[FuzzyMapping], right_rename_dict: dict[str, str]) -> None:
+def rename_fuzzy_right_mapping(fuzzy_maps: list[FuzzyMapping], right_rename_dict: dict[str, str]) -> list[FuzzyMapping]:
     """
     Rename the right column names in fuzzy mappings based on a provided mapping.
 
@@ -264,12 +265,16 @@ def rename_fuzzy_right_mapping(fuzzy_maps: list[FuzzyMapping], right_rename_dict
         right_rename_dict (dict[str, str]): Dictionary mapping original right column names to new names.
 
     Returns:
-        None: The function modifies the fuzzy_maps in place.
+        list[FuzzyMapping]: Updated list of fuzzy mappings with renamed right columns.
     """
+    new_maps = []
     for fuzzy_map in fuzzy_maps:
+        new_map = copy(fuzzy_map)
         new_right_name = right_rename_dict.get(fuzzy_map.right_col)
         if new_right_name:
-            fuzzy_map.right_col = new_right_name
+            new_map.right_col = new_right_name
+        new_maps.append(new_map)
+    return new_maps
 
 
 def pre_process_for_fuzzy_matching(
@@ -316,5 +321,5 @@ def pre_process_for_fuzzy_matching(
         left_df, right_df = aggregate_output(left_df, right_df, fuzzy_maps)
     logger.info("Data and settings optimized for fuzzy matching")
     right_rename_dict = get_rename_right_columns_to_ensure_no_overlap(left_df, right_df)
-    rename_fuzzy_right_mapping(fuzzy_maps, right_rename_dict)
+    fuzzy_maps = rename_fuzzy_right_mapping(fuzzy_maps, right_rename_dict)
     return left_df, right_df.rename(right_rename_dict), fuzzy_maps

@@ -1,7 +1,8 @@
 import tempfile
-from logging import Logger
-from typing import cast, Generator
+from collections.abc import Generator
 from contextlib import contextmanager
+from logging import Logger
+from typing import cast
 
 import polars as pl
 import polars_simed as ps

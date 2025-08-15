@@ -30,7 +30,7 @@ packages = [{include = "pl_fuzzy_frame_match"}]
 python = "^3.10"
 polars = [
     { version = ">=1.8.2, <=1.25.2", markers = "sys_platform == 'win32'" }, # For Windows, max version 1.25.2
-    { version = ">=1.8.2, <2.0.0", markers = "sys_platform != 'win32'" } # For non-Windows, allows 1.26.0 up to (but not including) 2.0.0
+    { version = ">=1.8.2, <1.32.0", markers = "sys_platform != 'win32'" } # For non-Windows, allows 1.26.0 up to (but not including) 2.0.0
                                                                       # Or whatever your desired range is for other OSes
 ]
 polars-distance = "~0.4.3"

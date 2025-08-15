@@ -532,13 +532,13 @@ def test_split_dataframe():
 
 def test_fuzzy_match_dfs_with_context(logger):
     """Test the new fuzzy_match_dfs_with_context function."""
-    from pl_fuzzy_frame_match.matcher import fuzzy_match_dfs_with_context, temp_dir
+    from pl_fuzzy_frame_match.matcher import fuzzy_match_dfs_with_context, fuzzy_match_temp_dir
     from .match_utils import generate_small_fuzzy_test_data
 
     left_df, right_df, mapping = generate_small_fuzzy_test_data()
 
     # Method 1: Use the context manager directly in the test
-    with temp_dir() as tmpdir:
+    with fuzzy_match_temp_dir() as tmpdir:
         result_lazy = fuzzy_match_dfs_with_context(
             left_df=left_df.lazy(),
             right_df=right_df.lazy(),
@@ -561,6 +561,7 @@ def test_fuzzy_match_dfs_with_context(logger):
         # Verify expected columns exist
         expected_cols = {"id", "company_name", "address", "contact", "fuzzy_score_0"}
         assert expected_cols.issubset(set(result.columns))
+
 
 def test_fuzzy_match_dfs_with_context_using_fixture(temp_directory, logger):
     """Test using the existing temp_directory fixture."""

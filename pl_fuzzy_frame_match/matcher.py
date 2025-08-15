@@ -1,4 +1,6 @@
 import tempfile
+from collections.abc import Generator
+from contextlib import contextmanager
 from logging import Logger
 from typing import cast
 
@@ -572,6 +574,85 @@ def perform_all_fuzzy_matches(
     return matching_dfs
 
 
+def fuzzy_match_dfs_with_context(
+    left_df: pl.LazyFrame,
+    right_df: pl.LazyFrame,
+    fuzzy_maps: list[FuzzyMapping],
+    logger: Logger,
+    temp_dir: str,
+    use_appr_nearest_neighbor_for_new_matches: bool | None = None,
+    top_n_for_new_matches: int = 500,
+    cross_over_for_appr_nearest_neighbor: int = 100_000_000,
+) -> pl.LazyFrame:
+    """
+    Perform fuzzy matching between two dataframes using multiple fuzzy mapping configurations,
+    with external temporary directory management.
+
+    This function is designed to be used with a context manager that provides the temporary
+    directory, allowing the caller to manage cleanup and return a LazyFrame for further
+    lazy operations.
+
+    Args:
+        left_df (pl.LazyFrame): Left dataframe to be matched.
+        right_df (pl.LazyFrame): Right dataframe to be matched.
+        fuzzy_maps (list[FuzzyMapping]): A list of fuzzy mapping configurations to apply sequentially.
+        logger (Logger): Logger instance for tracking progress.
+        temp_dir (str): Path to temporary directory for caching. Caller is responsible for cleanup.
+        use_appr_nearest_neighbor_for_new_matches (bool | None, optional):
+            Controls the join strategy for generating initial candidate pairs when no prior
+            matches exist.
+            - If True, forces the use of approximate nearest neighbor join.
+            - If False, forces a standard cross join.
+            - If None (default), an automatic selection based on data size is made.
+            Defaults to None.
+        top_n_for_new_matches (int, optional):
+            When generating new matches with the approximate method, this specifies the maximum
+            number of similar items to consider for each record. Defaults to 500.
+        cross_over_for_appr_nearest_neighbor (int, optional):
+            The cartesian product size threshold to automatically switch to the approximate
+            join method when `use_appr_nearest_neighbor_for_new_matches` is None.
+            Defaults to 100,000,000.
+
+    Returns:
+        pl.LazyFrame: The final matched LazyFrame containing original data from both
+                      dataframes along with all calculated fuzzy scores.
+    """
+    left_df, right_df, fuzzy_maps = pre_process_for_fuzzy_matching(left_df, right_df, fuzzy_maps, logger)
+
+    # Add index columns to both dataframes
+    left_df = add_index_column(left_df, "__left_index", temp_dir)
+    right_df = add_index_column(right_df, "__right_index", temp_dir)
+
+    matching_dfs = perform_all_fuzzy_matches(
+        left_df=left_df,
+        right_df=right_df,
+        fuzzy_maps=fuzzy_maps,
+        logger=logger,
+        local_temp_dir_ref=temp_dir,
+        use_appr_nearest_neighbor_for_new_matches=use_appr_nearest_neighbor_for_new_matches,
+        top_n_for_new_matches=top_n_for_new_matches,
+        cross_over_for_appr_nearest_neighbor=cross_over_for_appr_nearest_neighbor,
+    )
+
+    # Combine all matches
+    if len(matching_dfs) > 1:
+        logger.info("Combining fuzzy matches")
+        all_matches_df = combine_matches(matching_dfs)
+    else:
+        logger.info("Caching fuzzy matches")
+        all_matches_df = cache_polars_frame_to_temp(matching_dfs[0], temp_dir)
+
+    # Join matches with original dataframes and return LazyFrame
+    logger.info("Joining fuzzy matches with original dataframes")
+    result_lazy = (
+        left_df.join(all_matches_df, on="__left_index")
+        .join(right_df, on="__right_index")
+        .drop("__right_index", "__left_index")
+    )
+
+    return result_lazy
+
+
 def fuzzy_match_dfs(
     left_df: pl.LazyFrame,
     right_df: pl.LazyFrame,
@@ -617,38 +698,68 @@ def fuzzy_match_dfs(
     local_temp_dir = tempfile.TemporaryDirectory()
     local_temp_dir_ref = local_temp_dir.name
 
-    # Add index columns to both dataframes
-    left_df = add_index_column(left_df, "__left_index", local_temp_dir_ref)
-    right_df = add_index_column(right_df, "__right_index", local_temp_dir_ref)
+    try:
+        # Add index columns to both dataframes
+        left_df = add_index_column(left_df, "__left_index", local_temp_dir_ref)
+        right_df = add_index_column(right_df, "__right_index", local_temp_dir_ref)
 
-    matching_dfs = perform_all_fuzzy_matches(
-        left_df=left_df,
-        right_df=right_df,
-        fuzzy_maps=fuzzy_maps,
-        logger=logger,
-        local_temp_dir_ref=local_temp_dir_ref,
-        use_appr_nearest_neighbor_for_new_matches=use_appr_nearest_neighbor_for_new_matches,
-        top_n_for_new_matches=top_n_for_new_matches,
-        cross_over_for_appr_nearest_neighbor=cross_over_for_appr_nearest_neighbor,
-    )
+        matching_dfs = perform_all_fuzzy_matches(
+            left_df=left_df,
+            right_df=right_df,
+            fuzzy_maps=fuzzy_maps,
+            logger=logger,
+            local_temp_dir_ref=local_temp_dir_ref,
+            use_appr_nearest_neighbor_for_new_matches=use_appr_nearest_neighbor_for_new_matches,
+            top_n_for_new_matches=top_n_for_new_matches,
+            cross_over_for_appr_nearest_neighbor=cross_over_for_appr_nearest_neighbor,
+        )
 
-    # Combine all matches
-    if len(matching_dfs) > 1:
-        logger.info("Combining fuzzy matches")
-        all_matches_df = combine_matches(matching_dfs)
-    else:
-        logger.info("Caching fuzzy matches")
-        all_matches_df = cache_polars_frame_to_temp(matching_dfs[0], local_temp_dir_ref)
+        # Combine all matches
+        if len(matching_dfs) > 1:
+            logger.info("Combining fuzzy matches")
+            all_matches_df = combine_matches(matching_dfs)
+        else:
+            logger.info("Caching fuzzy matches")
+            all_matches_df = cache_polars_frame_to_temp(matching_dfs[0], local_temp_dir_ref)
 
-    # Join matches with original dataframes
-    logger.info("Joining fuzzy matches with original dataframes")
-    output_df = collect_lazy_frame(
-        left_df.join(all_matches_df, on="__left_index")
-        .join(right_df, on="__right_index")
-        .drop("__right_index", "__left_index")
-    )
+        # Join matches with original dataframes
+        logger.info("Joining fuzzy matches with original dataframes")
+        output_df = collect_lazy_frame(
+            left_df.join(all_matches_df, on="__left_index")
+            .join(right_df, on="__right_index")
+            .drop("__right_index", "__left_index")
+        )
 
-    logger.info("Cleaning up temporary files")
-    local_temp_dir.cleanup()
+        return output_df
+    except Exception as e:
+        logger.info("Cleaning up temporary files")
+        local_temp_dir.cleanup()
+        raise e
 
-    return output_df
+
+@contextmanager
+def fuzzy_match_temp_dir() -> Generator[str, None, None]:
+    """
+    Context manager that provides a temporary directory for fuzzy matching operations.
+
+    Yields:
+        str: Path to the temporary directory
+
+    Example:
+        with fuzzy_match_temp_context() as temp_dir:
+            result_lazy = fuzzy_match_dfs_with_context(
+                left_df=left_df,
+                right_df=right_df,
+                fuzzy_maps=fuzzy_maps,
+                logger=logger,
+                temp_dir=temp_dir
+            )
+            # Process the lazy frame...
+            final_result = result_lazy.collect()
+        # temp_dir is automatically cleaned up here
+    """
+    temp_dir = tempfile.TemporaryDirectory()
+    try:
+        yield temp_dir.name
+    finally:
+        temp_dir.cleanup()

@@ -12,5 +12,5 @@ __all__ = [
     "FuzzyMapping",
     "FuzzyTypeLiteral",
     "fuzzy_match_temp_dir",
-    "fuzzy_match_dfs_with_context"
+    "fuzzy_match_dfs_with_context",
 ]

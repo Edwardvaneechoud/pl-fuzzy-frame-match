@@ -14,6 +14,8 @@ from pl_fuzzy_frame_match.matcher import (
     cross_join_small_files,
     ensure_left_is_larger,
     fuzzy_match_dfs,
+    fuzzy_match_temp_dir,
+    fuzzy_match_dfs_with_context,
     perform_all_fuzzy_matches,
     process_fuzzy_mapping,
     split_dataframe,
@@ -23,6 +25,11 @@ from pl_fuzzy_frame_match.pre_process import pre_process_for_fuzzy_matching
 from pl_fuzzy_frame_match.process import process_fuzzy_frames
 
 from .match_utils import create_deterministic_test_data, create_test_data, generate_small_fuzzy_test_data
+
+@pytest.fixture
+def temp_dir_context():
+    """Fixture that provides the temp_dir context manager."""
+    return fuzzy_match_temp_dir
 
 
 @pytest.fixture
@@ -100,12 +107,10 @@ def create_test_dir():
 def test_cross_join_large_files(temp_directory, logger):
     """Test the cross_join_large_files function."""
     left_df, right_df, mapping = create_test_data(10_000)  # Smaller size for test speed
-
     left_col_name = mapping[0].left_col
     right_col_name = mapping[0].right_col
     left_df = add_index_column(left_df, "__left_index", temp_directory)
     right_df = add_index_column(right_df, "__right_index", temp_directory)
-
     (left_fuzzy_frame, right_fuzzy_frame, left_col_name, right_col_name, len_left_df, len_right_df) = (
         process_fuzzy_frames(
             left_df=left_df,
@@ -523,3 +528,180 @@ def test_split_dataframe():
     all_dfs = split_dataframe(left_df.collect(), 10_000)
     assert len(all_dfs) == 10, "Expected 10 dataframes with 10,000 rows each"
     assert all(len(df) == 10_000 for df in all_dfs), "Expected all dataframes to have 10,000 rows"
+
+
+def test_fuzzy_match_dfs_with_context(logger):
+    """Test the new fuzzy_match_dfs_with_context function."""
+    from pl_fuzzy_frame_match.matcher import fuzzy_match_dfs_with_context, temp_dir
+    from .match_utils import generate_small_fuzzy_test_data
+
+    left_df, right_df, mapping = generate_small_fuzzy_test_data()
+
+    # Method 1: Use the context manager directly in the test
+    with temp_dir() as tmpdir:
+        result_lazy = fuzzy_match_dfs_with_context(
+            left_df=left_df.lazy(),
+            right_df=right_df.lazy(),
+            fuzzy_maps=mapping,
+            logger=logger,
+            temp_dir=tmpdir
+        )
+
+        # Test that we get a LazyFrame
+        assert isinstance(result_lazy, pl.LazyFrame)
+
+        # Test that we can do additional lazy operations
+        filtered_result = result_lazy.filter(pl.col("fuzzy_score_0") > 0.8)
+
+        # Collect and verify
+        result = filtered_result.collect().sort("id")
+        assert result is not None
+        assert len(result) > 0
+
+        # Verify expected columns exist
+        expected_cols = {"id", "company_name", "address", "contact", "fuzzy_score_0"}
+        assert expected_cols.issubset(set(result.columns))
+
+def test_fuzzy_match_dfs_with_context_using_fixture(temp_directory, logger):
+    """Test using the existing temp_directory fixture."""
+    from pl_fuzzy_frame_match.matcher import fuzzy_match_dfs_with_context
+    from .match_utils import generate_small_fuzzy_test_data
+
+    left_df, right_df, mapping = generate_small_fuzzy_test_data()
+
+    # Method 2: Use the fixture-provided directory
+    result_lazy = fuzzy_match_dfs_with_context(
+        left_df=left_df.lazy(),
+        right_df=right_df.lazy(),
+        fuzzy_maps=mapping,
+        logger=logger,
+        temp_dir=temp_directory  # Use the fixture
+    )
+
+    # Test lazy operations
+    result = result_lazy.collect().sort("id")
+    assert result is not None
+    assert len(result) > 0
+
+
+def test_fuzzy_match_dfs_with_context_using_fixture_context(temp_dir_context, logger):
+    """Test using the context manager fixture."""
+    from pl_fuzzy_frame_match.matcher import fuzzy_match_dfs_with_context
+    from .match_utils import generate_small_fuzzy_test_data
+    left_df, right_df, mapping = generate_small_fuzzy_test_data()
+
+    # Method 3: Use the context manager from fixture
+    with temp_dir_context() as tmpdir:
+        result_lazy = fuzzy_match_dfs_with_context(
+            left_df=left_df.lazy(),
+            right_df=right_df.lazy(),
+            fuzzy_maps=mapping,
+            logger=logger,
+            temp_dir=tmpdir
+        )
+
+        result = result_lazy.collect().sort("id")
+        assert result is not None
+
+
+def test_compare_original_vs_context_functions(logger):
+    """Test that both functions produce equivalent results."""
+    from pl_fuzzy_frame_match.matcher import fuzzy_match_dfs, fuzzy_match_dfs_with_context, fuzzy_match_temp_dir
+    from .match_utils import generate_small_fuzzy_test_data
+
+    left_df, right_df, mapping = generate_small_fuzzy_test_data()
+
+    # Get result from original function
+    original_result = fuzzy_match_dfs(
+        left_df=left_df.lazy(),
+        right_df=right_df.lazy(),
+        fuzzy_maps=mapping,
+        logger=logger
+    ).sort("id")
+
+    # Get result from new function
+    with fuzzy_match_temp_dir() as tmpdir:
+        context_result = fuzzy_match_dfs_with_context(
+            left_df=left_df.lazy(),
+            right_df=right_df.lazy(),
+            fuzzy_maps=mapping,
+            logger=logger,
+            temp_dir=tmpdir
+        ).collect().sort("id")
+
+    # Compare results
+    assert original_result.equals(context_result), "Both functions should produce identical results"
+
+
+def test_temp_dir_context_manager():
+    """Test the temp_dir context manager itself."""
+    import os
+
+    # Test that directory exists inside context
+    with fuzzy_match_temp_dir() as tmpdir:
+        temp_path = tmpdir
+        assert os.path.exists(tmpdir)
+        assert os.path.isdir(tmpdir)
+
+        # Create a test file to verify directory works
+        test_file = os.path.join(tmpdir, "test.txt")
+        with open(test_file, "w") as f:
+            f.write("test")
+        assert os.path.exists(test_file)
+
+    # Test that directory is cleaned up after context
+    assert not os.path.exists(temp_path), "Temp directory should be cleaned up"
+
+
+def test_manual_temp_dir_management(logger):
+    """Test manual temp directory management."""
+    from pl_fuzzy_frame_match.matcher import fuzzy_match_dfs_with_context
+    from .match_utils import generate_small_fuzzy_test_data
+    import tempfile
+
+    left_df, right_df, mapping = generate_small_fuzzy_test_data()
+
+    temp_directory = tempfile.TemporaryDirectory()
+    try:
+        result_lazy = fuzzy_match_dfs_with_context(
+            left_df=left_df.lazy(),
+            right_df=right_df.lazy(),
+            fuzzy_maps=mapping,
+            logger=logger,
+            temp_dir=temp_directory.name
+        )
+
+        result = result_lazy.collect()
+        assert result is not None
+
+    finally:
+        temp_directory.cleanup()
+
+# Test pattern for multiple operations with same temp dir
+def test_multiple_operations_same_temp_dir(logger):
+    """Test multiple operations using the same temp directory."""
+    from .match_utils import generate_small_fuzzy_test_data
+
+    left_df, right_df, mapping = generate_small_fuzzy_test_data()
+
+    with fuzzy_match_temp_dir() as tmpdir:
+        # First, add index columns manually
+        left_with_index = add_index_column(left_df.lazy(), "__left_index", tmpdir)
+        right_with_index = add_index_column(right_df.lazy(), "__right_index", tmpdir)
+
+        # Then run fuzzy matching
+        result_lazy = fuzzy_match_dfs_with_context(
+            left_df=left_df.lazy(),
+            right_df=right_df.lazy(),
+            fuzzy_maps=mapping,
+            logger=logger,
+            temp_dir=tmpdir
+        )
+
+        # Do additional processing
+        processed_result = result_lazy.with_columns([
+            pl.col("fuzzy_score_0").alias("primary_score")
+        ])
+
+        final_result = processed_result.collect()
+        assert "primary_score" in final_result.columns

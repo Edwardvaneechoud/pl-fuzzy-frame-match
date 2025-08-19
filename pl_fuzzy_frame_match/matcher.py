@@ -2,7 +2,7 @@ import tempfile
 from collections.abc import Generator
 from contextlib import contextmanager
 from logging import Logger, getLogger
-from typing import cast, Optional
+from typing import cast
 
 import polars as pl
 import polars_simed as ps
@@ -657,7 +657,7 @@ def fuzzy_match_dfs(
     left_df: pl.LazyFrame,
     right_df: pl.LazyFrame,
     fuzzy_maps: list[FuzzyMapping],
-    logger: Optional[Logger] = None,
+    logger: Logger | None = None,
     use_appr_nearest_neighbor_for_new_matches: bool | None = None,
     top_n_for_new_matches: int = 500,
     cross_over_for_appr_nearest_neighbor: int = 100_000_000,

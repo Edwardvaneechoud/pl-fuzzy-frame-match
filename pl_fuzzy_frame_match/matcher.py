@@ -1,7 +1,7 @@
 import tempfile
 from collections.abc import Generator
 from contextlib import contextmanager
-from logging import Logger
+from logging import Logger, getLogger
 from typing import cast
 
 import polars as pl
@@ -657,7 +657,7 @@ def fuzzy_match_dfs(
     left_df: pl.LazyFrame,
     right_df: pl.LazyFrame,
     fuzzy_maps: list[FuzzyMapping],
-    logger: Logger,
+    logger: Logger | None = None,
     use_appr_nearest_neighbor_for_new_matches: bool | None = None,
     top_n_for_new_matches: int = 500,
     cross_over_for_appr_nearest_neighbor: int = 100_000_000,
@@ -672,7 +672,7 @@ def fuzzy_match_dfs(
         left_df (pl.LazyFrame): Left dataframe to be matched.
         right_df (pl.LazyFrame): Right dataframe to be matched.
         fuzzy_maps (list[FuzzyMapping]): A list of fuzzy mapping configurations to apply sequentially.
-        logger (Logger): Logger instance for tracking progress.
+        logger (Logger | None, optional): Logger instance for tracking progress.
         use_appr_nearest_neighbor_for_new_matches (bool | None, optional):
             Controls the join strategy for generating initial candidate pairs when no prior
             matches exist.
@@ -692,6 +692,8 @@ def fuzzy_match_dfs(
         pl.DataFrame: The final matched dataframe containing original data from both
                       dataframes along with all calculated fuzzy scores.
     """
+    if logger is None:
+        logger = getLogger(__name__)
     left_df, right_df, fuzzy_maps = pre_process_for_fuzzy_matching(left_df, right_df, fuzzy_maps, logger)
 
     # Create a temporary directory for caching intermediate results

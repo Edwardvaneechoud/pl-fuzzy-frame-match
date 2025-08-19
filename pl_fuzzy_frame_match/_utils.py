@@ -6,8 +6,6 @@ from typing import cast
 import polars as pl
 from polars.exceptions import PanicException
 
-logger = logging.getLogger(__name__)
-
 
 def collect_lazy_frame(lf: pl.LazyFrame) -> pl.DataFrame:
     """
@@ -118,3 +116,6 @@ def cache_polars_frame_to_temp(_df: pl.LazyFrame | pl.DataFrame, tempdir: str | 
         return df.lazy()
     else:
         raise Exception("Could not cache the data")
+
+
+logger = logging.getLogger(__name__)

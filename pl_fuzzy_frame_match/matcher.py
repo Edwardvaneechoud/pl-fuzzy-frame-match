@@ -422,7 +422,6 @@ def process_fuzzy_mapping(
     right_df: pl.LazyFrame,
     existing_matches: pl.LazyFrame | None,
     local_temp_dir_ref: str,
-    i: int,
     logger: Logger,
     existing_number_of_matches: int | None = None,
     use_appr_nearest_neighbor_for_new_matches: bool | None = None,
@@ -439,7 +438,6 @@ def process_fuzzy_mapping(
         existing_matches: Previously computed matches (or None). If provided, this function
                           will only calculate scores for these existing pairs.
         local_temp_dir_ref: Temporary directory reference for caching interim results.
-        i: Index of the current fuzzy mapping, used for naming the score column.
         logger: Logger instance for progress tracking.
         existing_number_of_matches: Number of existing matches (if available).
         use_appr_nearest_neighbor_for_new_matches: Controls join strategy when `existing_matches` is None.
@@ -494,10 +492,16 @@ def process_fuzzy_mapping(
     matching_df = cache_polars_frame_to_temp(matching_df, local_temp_dir_ref)
     if existing_number_of_matches is None or existing_number_of_matches > 100_000_000:
         existing_number_of_matches = matching_df.select(pl.len()).collect()[0, 0]
+    output_column_name = fuzzy_map.output_column_name
+    if output_column_name is None:
+        raise ValueError(
+            "FuzzyMapping output_column_name must be set to a valid column name, "
+            "or the FuzzyMapping object must be initialized with a valid output_column_name."
+        )
     if isinstance(existing_number_of_matches, int) and existing_number_of_matches > 100_000_000:
-        return unique_df_large(matching_df.rename({"s": f"fuzzy_score_{i}"})).lazy(), existing_number_of_matches
+        return unique_df_large(matching_df.rename({"s": output_column_name})).lazy(), existing_number_of_matches
     else:
-        return matching_df.rename({"s": f"fuzzy_score_{i}"}).unique(), existing_number_of_matches
+        return matching_df.rename({"s": output_column_name}).unique(), existing_number_of_matches
 
 
 def perform_all_fuzzy_matches(
@@ -556,14 +560,13 @@ def perform_all_fuzzy_matches(
     matching_dfs = []
     existing_matches = None
     existing_number_of_matches = None
-    for i, fuzzy_map in enumerate(fuzzy_maps):
+    for fuzzy_map in fuzzy_maps:
         existing_matches, existing_number_of_matches = process_fuzzy_mapping(
             fuzzy_map=fuzzy_map,
             left_df=left_df,
             right_df=right_df,
             existing_matches=existing_matches,
             local_temp_dir_ref=local_temp_dir_ref,
-            i=i,
             logger=logger,
             existing_number_of_matches=existing_number_of_matches,
             use_appr_nearest_neighbor_for_new_matches=use_appr_nearest_neighbor_for_new_matches,
@@ -618,6 +621,7 @@ def fuzzy_match_dfs_with_context(
                       dataframes along with all calculated fuzzy scores.
     """
     left_df, right_df, fuzzy_maps = pre_process_for_fuzzy_matching(left_df, right_df, fuzzy_maps, logger)
+    output_order = left_df.columns + right_df.columns + [fuzzy_map.output_column_name for fuzzy_map in fuzzy_maps]
 
     # Add index columns to both dataframes
     left_df = add_index_column(left_df, "__left_index", temp_dir)
@@ -648,6 +652,7 @@ def fuzzy_match_dfs_with_context(
         left_df.join(all_matches_df, on="__left_index")
         .join(right_df, on="__right_index")
         .drop("__right_index", "__left_index")
+        .select(output_order)
     )
 
     return result_lazy
@@ -694,45 +699,23 @@ def fuzzy_match_dfs(
     """
     if logger is None:
         logger = getLogger(__name__)
-    left_df, right_df, fuzzy_maps = pre_process_for_fuzzy_matching(left_df, right_df, fuzzy_maps, logger)
-
     # Create a temporary directory for caching intermediate results
     local_temp_dir = tempfile.TemporaryDirectory()
     local_temp_dir_ref = local_temp_dir.name
 
     try:
-        # Add index columns to both dataframes
-        left_df = add_index_column(left_df, "__left_index", local_temp_dir_ref)
-        right_df = add_index_column(right_df, "__right_index", local_temp_dir_ref)
-
-        matching_dfs = perform_all_fuzzy_matches(
-            left_df=left_df,
-            right_df=right_df,
-            fuzzy_maps=fuzzy_maps,
-            logger=logger,
-            local_temp_dir_ref=local_temp_dir_ref,
-            use_appr_nearest_neighbor_for_new_matches=use_appr_nearest_neighbor_for_new_matches,
-            top_n_for_new_matches=top_n_for_new_matches,
-            cross_over_for_appr_nearest_neighbor=cross_over_for_appr_nearest_neighbor,
+        lazy_output = fuzzy_match_dfs_with_context(
+            left_df,
+            right_df,
+            fuzzy_maps,
+            logger,
+            local_temp_dir_ref,
+            use_appr_nearest_neighbor_for_new_matches,
+            top_n_for_new_matches,
+            cross_over_for_appr_nearest_neighbor,
         )
+        return collect_lazy_frame(lazy_output)
 
-        # Combine all matches
-        if len(matching_dfs) > 1:
-            logger.info("Combining fuzzy matches")
-            all_matches_df = combine_matches(matching_dfs)
-        else:
-            logger.info("Caching fuzzy matches")
-            all_matches_df = cache_polars_frame_to_temp(matching_dfs[0], local_temp_dir_ref)
-
-        # Join matches with original dataframes
-        logger.info("Joining fuzzy matches with original dataframes")
-        output_df = collect_lazy_frame(
-            left_df.join(all_matches_df, on="__left_index")
-            .join(right_df, on="__right_index")
-            .drop("__right_index", "__left_index")
-        )
-
-        return output_df
     except Exception as e:
         logger.info("Cleaning up temporary files")
         local_temp_dir.cleanup()

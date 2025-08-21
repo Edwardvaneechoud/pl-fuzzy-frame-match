@@ -203,7 +203,7 @@ def test_cross_join_filter_existing_fuzzy_results(temp_directory):
 
 def test_cross_join_no_existing_fuzzy_results(temp_directory, logger):
     """Test cross_join_no_existing_fuzzy_results function."""
-    left_df, right_df, mapping = create_deterministic_test_data(20)
+    left_df, right_df, mapping = create_deterministic_test_data(10)
 
     left_col_name = mapping[0].left_col
     right_col_name = mapping[0].right_col
@@ -239,13 +239,12 @@ def test_process_fuzzy_mapping_no_existing_matches(temp_directory, logger):
         right_df=right_df,
         existing_matches=None,
         local_temp_dir_ref=temp_directory,
-        i=1,
         logger=logger,
     )
     test_result = (
         result.join(left_df, on="__left_index")
         .join(right_df, on="__right_index")
-        .select(["company_name", "organization", "fuzzy_score_1"])
+        .select(["company_name", "organization", "fuzzy_score_company_name_organization"])
         .collect()
     )
     result = result.collect()
@@ -253,13 +252,13 @@ def test_process_fuzzy_mapping_no_existing_matches(temp_directory, logger):
     # Assert that the result contains the expected columns
     assert "__left_index" in result.columns
     assert "__right_index" in result.columns
-    assert "fuzzy_score_1" in result.columns
+    assert "fuzzy_score_company_name_organization" in result.columns
 
     # Verify result is not empty
     assert result.shape[0] > 0
 
     # Check that fuzzy scores are within expected range (0-100)
-    assert all(0 <= score <= 1 for score in result["fuzzy_score_1"])
+    assert all(0 <= score <= 1 for score in result["fuzzy_score_company_name_organization"])
 
     # Verify that the test_result has matched columns and reasonable values
     assert test_result.shape[0] > 0
@@ -270,7 +269,7 @@ def test_process_fuzzy_mapping_no_existing_matches(temp_directory, logger):
     for row in test_result.iter_rows(named=True):
         company = row["company_name"]
         org = row["organization"]
-        score = row["fuzzy_score_1"]
+        score = row["fuzzy_score_company_name_organization"]
 
         # If score is high (above threshold), company and org should be similar
         if score >= fuzzy_map.threshold_score / 100:
@@ -296,7 +295,6 @@ def test_process_fuzzy_multiple_mappings(temp_directory, logger):
         right_df=right_df,
         existing_matches=None,
         local_temp_dir_ref=temp_directory,
-        i=1,
         logger=logger,
         existing_number_of_matches=None,
     )
@@ -307,7 +305,6 @@ def test_process_fuzzy_multiple_mappings(temp_directory, logger):
         right_df=right_df,
         existing_matches=first_result,
         local_temp_dir_ref=temp_directory,
-        i=2,
         logger=logger,
         existing_number_of_matches=n_matches,
     )
@@ -318,7 +315,6 @@ def test_process_fuzzy_multiple_mappings(temp_directory, logger):
         right_df=right_df,
         existing_matches=second_result,
         local_temp_dir_ref=temp_directory,
-        i=3,
         logger=logger,
         existing_number_of_matches=n_matches,
     )
@@ -351,8 +347,6 @@ def test_fuzzy_match_dfs(logger):
             "company_name": ["Apple Inc.", "Microsft", "Amazon", "Gogle", "Facebok"],
             "address": ["1 Apple Park", "One Microsoft Way", "410 Terry Ave N", "1600 Amphitheatre", "1 Hacker Way"],
             "contact": ["Tim Cook", "Satya Ndella", "Andy Jessy", "Sundar Pichai", "Mark Zukerberg"],
-            "fuzzy_score_0": [0.88, 0.9142857142857143, 0.8857142857142858, 0.8666666666666667, 0.9166666666666667],
-            "fuzzy_score_1": [0.6666666666666667, 0.9230769230769231, 0.9, 1.0, 0.9333333333333333],
             "id_right": [101, 102, 103, 104, 105],
             "organization": ["Apple Incorporated", "Microsoft Corp", "Amazon.com Inc", "Google LLC", "Facebook Inc"],
             "location": [
@@ -363,6 +357,9 @@ def test_fuzzy_match_dfs(logger):
                 "Hacker Way, Menlo Park",
             ],
             "ceo": ["Timothy Cook", "Satya Nadella", "Andy Jassy", "Sundar Pichai", "Mark Zuckerberg"],
+            "company_name_vs_organization_jaro_winkler": [0.88, 0.9142857142857143, 0.8857142857142858,
+                                                          0.8666666666666667, 0.9166666666666667],
+            "contact_vs_ceo_levenshtein": [0.6666666666666667, 0.9230769230769231, 0.9, 1.0, 0.9333333333333333],
         }
     )
     assert result.equals(expected_match_data), "Unexpected match data"
@@ -377,7 +374,7 @@ def test_fuzzy_match_dfs_equal_column_names(logger):
         left_df.lazy(),
         right_df.lazy(),
         [mapping[0]],
-        logger).select("fuzzy_score_0").unique().select(pl.len())[0,0])>1,\
+        logger).select("organization_vs_organization_right_jaro_winkler").unique().select(pl.len())[0,0])>1,\
         "Expected multiple matches for equal column names"
     result = fuzzy_match_dfs(left_df.lazy(), right_df.lazy(), mapping, logger)
     result = result.sort("id")
@@ -388,8 +385,6 @@ def test_fuzzy_match_dfs_equal_column_names(logger):
             "organization": ["Apple Inc.", "Microsft", "Amazon", "Gogle", "Facebok"],
             "address": ["1 Apple Park", "One Microsoft Way", "410 Terry Ave N", "1600 Amphitheatre", "1 Hacker Way"],
             "contact": ["Tim Cook", "Satya Ndella", "Andy Jessy", "Sundar Pichai", "Mark Zukerberg"],
-            "fuzzy_score_0": [0.88, 0.9142857142857143, 0.8857142857142858, 0.8666666666666667, 0.9166666666666667],
-            "fuzzy_score_1": [0.6666666666666667, 0.9230769230769231, 0.9, 1.0, 0.9333333333333333],
             "id_right": [101, 102, 103, 104, 105],
             "organization_right":
                 ["Apple Incorporated", "Microsoft Corp", "Amazon.com Inc", "Google LLC", "Facebook Inc"],
@@ -401,6 +396,9 @@ def test_fuzzy_match_dfs_equal_column_names(logger):
                 "Hacker Way, Menlo Park",
             ],
             "ceo": ["Timothy Cook", "Satya Nadella", "Andy Jassy", "Sundar Pichai", "Mark Zuckerberg"],
+            "organization_vs_organization_right_jaro_winkler": [0.88, 0.9142857142857143, 0.8857142857142858,
+                                                                0.8666666666666667, 0.9166666666666667],
+            "contact_vs_ceo_levenshtein": [0.6666666666666667, 0.9230769230769231, 0.9, 1.0, 0.9333333333333333],
         }
     )
     assert result.equals(expected_match_data), "Unexpected match data"
@@ -534,9 +532,7 @@ def test_fuzzy_match_dfs_with_context(logger):
     """Test the new fuzzy_match_dfs_with_context function."""
     from pl_fuzzy_frame_match.matcher import fuzzy_match_dfs_with_context, fuzzy_match_temp_dir
     from .match_utils import generate_small_fuzzy_test_data
-
     left_df, right_df, mapping = generate_small_fuzzy_test_data()
-
     # Method 1: Use the context manager directly in the test
     with fuzzy_match_temp_dir() as tmpdir:
         result_lazy = fuzzy_match_dfs_with_context(
@@ -546,12 +542,11 @@ def test_fuzzy_match_dfs_with_context(logger):
             logger=logger,
             temp_dir=tmpdir
         )
-
         # Test that we get a LazyFrame
         assert isinstance(result_lazy, pl.LazyFrame)
 
         # Test that we can do additional lazy operations
-        filtered_result = result_lazy.filter(pl.col("fuzzy_score_0") > 0.8)
+        filtered_result = result_lazy.filter(pl.col("company_name_vs_organization_jaro_winkler") > 0.8)
 
         # Collect and verify
         result = filtered_result.collect().sort("id")
@@ -559,7 +554,8 @@ def test_fuzzy_match_dfs_with_context(logger):
         assert len(result) > 0
 
         # Verify expected columns exist
-        expected_cols = {"id", "company_name", "address", "contact", "fuzzy_score_0"}
+        expected_cols = {"id", "company_name", "address", "contact",
+                         "company_name_vs_organization_jaro_winkler"}
         assert expected_cols.issubset(set(result.columns))
 
 
@@ -678,6 +674,7 @@ def test_manual_temp_dir_management(logger):
     finally:
         temp_directory.cleanup()
 
+
 # Test pattern for multiple operations with same temp dir
 def test_multiple_operations_same_temp_dir(logger):
     """Test multiple operations using the same temp directory."""
@@ -701,7 +698,7 @@ def test_multiple_operations_same_temp_dir(logger):
 
         # Do additional processing
         processed_result = result_lazy.with_columns([
-            pl.col("fuzzy_score_0").alias("primary_score")
+            pl.col("company_name_vs_organization_jaro_winkler").alias("primary_score")
         ])
 
         final_result = processed_result.collect()

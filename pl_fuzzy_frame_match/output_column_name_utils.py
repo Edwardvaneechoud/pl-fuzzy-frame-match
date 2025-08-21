@@ -1,4 +1,3 @@
-
 from pl_fuzzy_frame_match.models import FuzzyMapping
 
 

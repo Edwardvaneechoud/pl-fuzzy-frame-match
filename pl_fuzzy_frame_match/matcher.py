@@ -704,9 +704,16 @@ def fuzzy_match_dfs(
     local_temp_dir_ref = local_temp_dir.name
 
     try:
-        lazy_output = fuzzy_match_dfs_with_context(left_df, right_df, fuzzy_maps, logger, local_temp_dir_ref,
-                                                   use_appr_nearest_neighbor_for_new_matches,
-                                                   top_n_for_new_matches, cross_over_for_appr_nearest_neighbor)
+        lazy_output = fuzzy_match_dfs_with_context(
+            left_df,
+            right_df,
+            fuzzy_maps,
+            logger,
+            local_temp_dir_ref,
+            use_appr_nearest_neighbor_for_new_matches,
+            top_n_for_new_matches,
+            cross_over_for_appr_nearest_neighbor,
+        )
         return collect_lazy_frame(lazy_output)
 
     except Exception as e:
@@ -741,4 +748,3 @@ def fuzzy_match_temp_dir() -> Generator[str, None, None]:
         yield temp_dir.name
     finally:
         temp_dir.cleanup()
-

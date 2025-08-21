@@ -619,6 +619,8 @@ def fuzzy_match_dfs_with_context(
     """
     left_df, right_df, fuzzy_maps = pre_process_for_fuzzy_matching(left_df, right_df, fuzzy_maps, logger)
 
+    output_order = left_df.columns + right_df.columns
+
     # Add index columns to both dataframes
     left_df = add_index_column(left_df, "__left_index", temp_dir)
     right_df = add_index_column(right_df, "__right_index", temp_dir)
@@ -694,45 +696,17 @@ def fuzzy_match_dfs(
     """
     if logger is None:
         logger = getLogger(__name__)
-    left_df, right_df, fuzzy_maps = pre_process_for_fuzzy_matching(left_df, right_df, fuzzy_maps, logger)
-
     # Create a temporary directory for caching intermediate results
     local_temp_dir = tempfile.TemporaryDirectory()
     local_temp_dir_ref = local_temp_dir.name
 
     try:
         # Add index columns to both dataframes
-        left_df = add_index_column(left_df, "__left_index", local_temp_dir_ref)
-        right_df = add_index_column(right_df, "__right_index", local_temp_dir_ref)
+        lazy_output = fuzzy_match_dfs_with_context(left_df, right_df, fuzzy_maps, logger, local_temp_dir_ref,
+                                                   use_appr_nearest_neighbor_for_new_matches,
+                                                   top_n_for_new_matches, cross_over_for_appr_nearest_neighbor)
+        return collect_lazy_frame(lazy_output)
 
-        matching_dfs = perform_all_fuzzy_matches(
-            left_df=left_df,
-            right_df=right_df,
-            fuzzy_maps=fuzzy_maps,
-            logger=logger,
-            local_temp_dir_ref=local_temp_dir_ref,
-            use_appr_nearest_neighbor_for_new_matches=use_appr_nearest_neighbor_for_new_matches,
-            top_n_for_new_matches=top_n_for_new_matches,
-            cross_over_for_appr_nearest_neighbor=cross_over_for_appr_nearest_neighbor,
-        )
-
-        # Combine all matches
-        if len(matching_dfs) > 1:
-            logger.info("Combining fuzzy matches")
-            all_matches_df = combine_matches(matching_dfs)
-        else:
-            logger.info("Caching fuzzy matches")
-            all_matches_df = cache_polars_frame_to_temp(matching_dfs[0], local_temp_dir_ref)
-
-        # Join matches with original dataframes
-        logger.info("Joining fuzzy matches with original dataframes")
-        output_df = collect_lazy_frame(
-            left_df.join(all_matches_df, on="__left_index")
-            .join(right_df, on="__right_index")
-            .drop("__right_index", "__left_index")
-        )
-
-        return output_df
     except Exception as e:
         logger.info("Cleaning up temporary files")
         local_temp_dir.cleanup()

@@ -6,6 +6,7 @@ import polars as pl
 
 from ._utils import collect_lazy_frame
 from .models import FuzzyMapping
+from .output_column_name_utils import set_name_in_fuzzy_mappings
 
 
 def get_approx_uniqueness(lf: pl.LazyFrame) -> dict[str, int]:
@@ -322,4 +323,5 @@ def pre_process_for_fuzzy_matching(
     logger.info("Data and settings optimized for fuzzy matching")
     right_rename_dict = get_rename_right_columns_to_ensure_no_overlap(left_df, right_df)
     fuzzy_maps = rename_fuzzy_right_mapping(fuzzy_maps, right_rename_dict)
+    set_name_in_fuzzy_mappings(fuzzy_maps)
     return left_df, right_df.rename(right_rename_dict), fuzzy_maps

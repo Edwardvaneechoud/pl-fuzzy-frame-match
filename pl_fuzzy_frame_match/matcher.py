@@ -2,15 +2,18 @@ import tempfile
 from collections.abc import Generator
 from contextlib import contextmanager
 from logging import Logger, getLogger
-from typing import cast
+from typing import cast, Union
 
 import polars as pl
 import polars_simed as ps
 
 from ._utils import cache_polars_frame_to_temp, collect_lazy_frame
-from .models import FuzzyMapping
+from .models import FuzzyMapping, FuzzyMapExpr
 from .pre_process import pre_process_for_fuzzy_matching
 from .process import calculate_and_parse_fuzzy, process_fuzzy_frames
+
+# Type alias for fuzzy maps input
+FuzzyMapsInput = Union[list[FuzzyMapping], FuzzyMapExpr]
 
 
 def ensure_left_is_larger(
@@ -392,6 +395,74 @@ def combine_matches(matching_dfs: list[pl.LazyFrame]) -> pl.LazyFrame:
     return all_matching_indexes
 
 
+def combine_branch_results(branch_results: list[pl.LazyFrame]) -> pl.LazyFrame:
+    """Combine results from multiple branches using UNION (OR logic).
+
+    Each branch result contains matches that passed all conditions in that branch.
+    The final result is the union of all branch results, deduplicated by index pairs.
+
+    Args:
+        branch_results: List of LazyFrames, one per branch, each containing
+            __left_index, __right_index, and score columns.
+
+    Returns:
+        A LazyFrame with all matches from all branches, deduplicated.
+    """
+    if len(branch_results) == 1:
+        return branch_results[0]
+
+    # Collect schemas from all branches to determine column types
+    all_schemas: dict[str, pl.DataType] = {}
+    for branch_df in branch_results:
+        schema = branch_df.collect_schema()
+        for col_name, col_type in schema.items():
+            if col_name not in all_schemas:
+                all_schemas[col_name] = col_type
+            elif all_schemas[col_name] == pl.Null and col_type != pl.Null:
+                # Prefer non-null types
+                all_schemas[col_name] = col_type
+
+    all_columns = set(all_schemas.keys())
+
+    # For each branch, add missing score columns as null with correct type
+    normalized_branches = []
+    for branch_df in branch_results:
+        branch_schema = branch_df.collect_schema()
+        branch_cols = set(branch_schema.names())
+        missing_cols = all_columns - branch_cols
+
+        if missing_cols:
+            # Add missing columns with correct type (cast null to the expected type)
+            add_exprs = []
+            for col in missing_cols:
+                target_type = all_schemas[col]
+                if target_type == pl.Null:
+                    add_exprs.append(pl.lit(None).alias(col))
+                else:
+                    add_exprs.append(pl.lit(None).cast(target_type).alias(col))
+            branch_df = branch_df.with_columns(add_exprs)
+
+        # Ensure consistent column order
+        branch_df = branch_df.select(sorted(all_columns))
+        normalized_branches.append(branch_df)
+
+    # Concatenate all branches and deduplicate
+    combined = pl.concat(normalized_branches)
+
+    # For duplicates, keep the row with the most non-null score values
+    # Group by index columns and aggregate to pick best matches
+    score_cols = [c for c in all_columns if c not in ("__left_index", "__right_index")]
+
+    if score_cols:
+        # Use first non-null value for each score column
+        agg_exprs = [pl.col(col).drop_nulls().first().alias(col) for col in score_cols]
+        combined = combined.group_by("__left_index", "__right_index").agg(agg_exprs)
+    else:
+        combined = combined.unique(subset=["__left_index", "__right_index"])
+
+    return combined
+
+
 def add_index_column(df: pl.LazyFrame, column_name: str, tempdir: str) -> pl.LazyFrame:
     """
     Add a row index column to a dataframe and cache it to temporary storage.
@@ -577,10 +648,52 @@ def perform_all_fuzzy_matches(
     return matching_dfs
 
 
+def _process_single_branch(
+    left_df: pl.LazyFrame,
+    right_df: pl.LazyFrame,
+    branch: list[FuzzyMapping],
+    logger: Logger,
+    temp_dir: str,
+    use_appr_nearest_neighbor_for_new_matches: bool | None,
+    top_n_for_new_matches: int,
+    cross_over_for_appr_nearest_neighbor: int,
+) -> pl.LazyFrame:
+    """Process a single branch of fuzzy mappings (all AND-ed together).
+
+    Args:
+        left_df: Left dataframe with index column.
+        right_df: Right dataframe with index column.
+        branch: List of FuzzyMappings to apply sequentially (AND logic).
+        logger: Logger instance.
+        temp_dir: Temporary directory for caching.
+        use_appr_nearest_neighbor_for_new_matches: Join strategy control.
+        top_n_for_new_matches: Top N for approximate matching.
+        cross_over_for_appr_nearest_neighbor: Threshold for approximate matching.
+
+    Returns:
+        LazyFrame with matches for this branch.
+    """
+    matching_dfs = perform_all_fuzzy_matches(
+        left_df=left_df,
+        right_df=right_df,
+        fuzzy_maps=branch,
+        logger=logger,
+        local_temp_dir_ref=temp_dir,
+        use_appr_nearest_neighbor_for_new_matches=use_appr_nearest_neighbor_for_new_matches,
+        top_n_for_new_matches=top_n_for_new_matches,
+        cross_over_for_appr_nearest_neighbor=cross_over_for_appr_nearest_neighbor,
+    )
+
+    if len(matching_dfs) > 1:
+        return combine_matches(matching_dfs)
+    else:
+        return cache_polars_frame_to_temp(matching_dfs[0], temp_dir)
+
+
 def fuzzy_match_dfs_with_context(
     left_df: pl.LazyFrame,
     right_df: pl.LazyFrame,
-    fuzzy_maps: list[FuzzyMapping],
+    fuzzy_maps: FuzzyMapsInput,
     logger: Logger,
     temp_dir: str,
     use_appr_nearest_neighbor_for_new_matches: bool | None = None,
@@ -588,7 +701,7 @@ def fuzzy_match_dfs_with_context(
     cross_over_for_appr_nearest_neighbor: int = 100_000_000,
 ) -> pl.LazyFrame:
     """
-    Perform fuzzy matching between two dataframes using multiple fuzzy mapping configurations,
+    Perform fuzzy matching between two dataframes using fuzzy mapping configurations,
     with external temporary directory management.
 
     This function is designed to be used with a context manager that provides the temporary
@@ -598,7 +711,9 @@ def fuzzy_match_dfs_with_context(
     Args:
         left_df (pl.LazyFrame): Left dataframe to be matched.
         right_df (pl.LazyFrame): Right dataframe to be matched.
-        fuzzy_maps (list[FuzzyMapping]): A list of fuzzy mapping configurations to apply sequentially.
+        fuzzy_maps (list[FuzzyMapping] | FuzzyMapExpr): Either a list of FuzzyMapping
+            configurations to apply sequentially (AND logic), or a FuzzyMapExpr that
+            supports complex AND/OR combinations.
         logger (Logger): Logger instance for tracking progress.
         temp_dir (str): Path to temporary directory for caching. Caller is responsible for cleanup.
         use_appr_nearest_neighbor_for_new_matches (bool | None, optional):
@@ -620,40 +735,74 @@ def fuzzy_match_dfs_with_context(
         pl.LazyFrame: The final matched LazyFrame containing original data from both
                       dataframes along with all calculated fuzzy scores.
     """
-    left_df, right_df, fuzzy_maps = pre_process_for_fuzzy_matching(left_df, right_df, fuzzy_maps, logger)
-    output_order = left_df.columns + right_df.columns + [fuzzy_map.output_column_name for fuzzy_map in fuzzy_maps]
+    # Convert FuzzyMapExpr to branches if needed
+    if isinstance(fuzzy_maps, FuzzyMapExpr):
+        branches = fuzzy_maps.to_branches()
+        all_mappings = fuzzy_maps.get_all_mappings()
+    else:
+        # Traditional list of FuzzyMappings = single branch (all AND)
+        branches = [fuzzy_maps]
+        all_mappings = fuzzy_maps
 
-    # Add index columns to both dataframes
-    left_df = add_index_column(left_df, "__left_index", temp_dir)
-    right_df = add_index_column(right_df, "__right_index", temp_dir)
-
-    matching_dfs = perform_all_fuzzy_matches(
-        left_df=left_df,
-        right_df=right_df,
-        fuzzy_maps=fuzzy_maps,
-        logger=logger,
-        local_temp_dir_ref=temp_dir,
-        use_appr_nearest_neighbor_for_new_matches=use_appr_nearest_neighbor_for_new_matches,
-        top_n_for_new_matches=top_n_for_new_matches,
-        cross_over_for_appr_nearest_neighbor=cross_over_for_appr_nearest_neighbor,
+    # Preprocess all mappings to get column name transformations
+    left_df_processed, right_df_processed, all_mappings_processed = pre_process_for_fuzzy_matching(
+        left_df, right_df, all_mappings, logger
     )
 
-    # Combine all matches
-    if len(matching_dfs) > 1:
-        logger.info("Combining fuzzy matches")
-        all_matches_df = combine_matches(matching_dfs)
+    # Build a mapping from original to processed FuzzyMapping for each branch
+    # This is needed because pre_process_for_fuzzy_matching may modify output_column_name
+    original_to_processed = {id(orig): proc for orig, proc in zip(all_mappings, all_mappings_processed)}
+
+    # Update branches to use processed mappings
+    processed_branches = []
+    for branch in branches:
+        processed_branch = [original_to_processed.get(id(m), m) for m in branch]
+        processed_branches.append(processed_branch)
+
+    # Collect all output column names for the final output order
+    output_score_columns = [m.output_column_name for m in all_mappings_processed]
+    output_order = left_df_processed.columns + right_df_processed.columns + output_score_columns
+
+    # Add index columns to both dataframes
+    left_df_indexed = add_index_column(left_df_processed, "__left_index", temp_dir)
+    right_df_indexed = add_index_column(right_df_processed, "__right_index", temp_dir)
+
+    # Process each branch
+    branch_results = []
+    for i, branch in enumerate(processed_branches):
+        if len(processed_branches) > 1:
+            logger.info(f"Processing branch {i + 1}/{len(processed_branches)}")
+        branch_result = _process_single_branch(
+            left_df=left_df_indexed,
+            right_df=right_df_indexed,
+            branch=branch,
+            logger=logger,
+            temp_dir=temp_dir,
+            use_appr_nearest_neighbor_for_new_matches=use_appr_nearest_neighbor_for_new_matches,
+            top_n_for_new_matches=top_n_for_new_matches,
+            cross_over_for_appr_nearest_neighbor=cross_over_for_appr_nearest_neighbor,
+        )
+        branch_results.append(branch_result)
+
+    # Combine branch results (OR logic)
+    if len(branch_results) > 1:
+        logger.info("Combining branch results (OR logic)")
+        all_matches_df = combine_branch_results(branch_results)
     else:
-        logger.info("Caching fuzzy matches")
-        all_matches_df = cache_polars_frame_to_temp(matching_dfs[0], temp_dir)
+        all_matches_df = branch_results[0]
 
     # Join matches with original dataframes and return LazyFrame
     logger.info("Joining fuzzy matches with original dataframes")
-    result_lazy = (
-        left_df.join(all_matches_df, on="__left_index")
-        .join(right_df, on="__right_index")
-        .drop("__right_index", "__left_index")
-        .select(output_order)
+
+    # Build select list, handling potentially missing score columns
+    result_lazy = left_df_indexed.join(all_matches_df, on="__left_index").join(
+        right_df_indexed, on="__right_index"
     )
+
+    # Select only columns that exist (some score columns may be null for OR branches)
+    available_cols = result_lazy.collect_schema().names()
+    final_select = [col for col in output_order if col in available_cols]
+    result_lazy = result_lazy.select(final_select)
 
     return result_lazy
 
@@ -661,14 +810,14 @@ def fuzzy_match_dfs_with_context(
 def fuzzy_match_dfs(
     left_df: pl.LazyFrame,
     right_df: pl.LazyFrame,
-    fuzzy_maps: list[FuzzyMapping],
+    fuzzy_maps: FuzzyMapsInput,
     logger: Logger | None = None,
     use_appr_nearest_neighbor_for_new_matches: bool | None = None,
     top_n_for_new_matches: int = 500,
     cross_over_for_appr_nearest_neighbor: int = 100_000_000,
 ) -> pl.DataFrame:
     """
-    Perform fuzzy matching between two dataframes using multiple fuzzy mapping configurations.
+    Perform fuzzy matching between two dataframes using fuzzy mapping configurations.
 
     This is the main entry point function that orchestrates the entire fuzzy matching process,
     from pre-processing and indexing to matching and final joining.
@@ -676,7 +825,24 @@ def fuzzy_match_dfs(
     Args:
         left_df (pl.LazyFrame): Left dataframe to be matched.
         right_df (pl.LazyFrame): Right dataframe to be matched.
-        fuzzy_maps (list[FuzzyMapping]): A list of fuzzy mapping configurations to apply sequentially.
+        fuzzy_maps (list[FuzzyMapping] | FuzzyMapExpr): Either a list of FuzzyMapping
+            configurations to apply sequentially (AND logic), or a FuzzyMapExpr that
+            supports complex AND/OR combinations using & and | operators.
+
+            Example with list (AND logic - all conditions must match):
+                fuzzy_maps = [
+                    FuzzyMapping("name", "name", threshold_score=80),
+                    FuzzyMapping("city", "city", threshold_score=90),
+                ]
+
+            Example with FuzzyMapExpr (AND/OR logic):
+                name_match = FuzzyMapExpr("name", "name", threshold_score=80)
+                city_match = FuzzyMapExpr("city", "city", threshold_score=90)
+                email_match = FuzzyMapExpr("email", "email", threshold_score=95)
+
+                # (name AND city) OR email
+                fuzzy_maps = (name_match & city_match) | email_match
+
         logger (Logger | None, optional): Logger instance for tracking progress.
         use_appr_nearest_neighbor_for_new_matches (bool | None, optional):
             Controls the join strategy for generating initial candidate pairs when no prior

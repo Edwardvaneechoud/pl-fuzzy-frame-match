@@ -8,11 +8,10 @@ import polars as pl
 import polars_simed as ps
 
 from ._utils import cache_polars_frame_to_temp, collect_lazy_frame
-from .models import FuzzyMapping, FuzzyMapExpr
+from .models import FuzzyMapExpr, FuzzyMapping
 from .pre_process import pre_process_for_fuzzy_matching
 from .process import calculate_and_parse_fuzzy, process_fuzzy_frames
 
-# Type alias for fuzzy maps input
 FuzzyMapsInput = list[FuzzyMapping] | FuzzyMapExpr
 
 
@@ -744,38 +743,20 @@ def fuzzy_match_dfs_with_context(
         branches = [fuzzy_maps]
         all_mappings = fuzzy_maps
 
-    # Preprocess all mappings to get column name transformations
     left_df_processed, right_df_processed, all_mappings_processed = pre_process_for_fuzzy_matching(
         left_df, right_df, all_mappings, logger
     )
 
-    # Build a mapping from original to processed FuzzyMapping for each branch
-    # This is needed because pre_process_for_fuzzy_matching may modify output_column_name
-    # and also REORDERS mappings by uniqueness, so we can't rely on order or id()
-    # Instead, we match by (left_col, threshold_score, fuzzy_type) which uniquely identifies a mapping
-
     def get_mapping_key(m: FuzzyMapping) -> tuple:
-        """Get a unique key for a FuzzyMapping based on its configuration."""
         return (m.left_col, m.threshold_score, m.fuzzy_type)
 
-    # Create lookup by key from processed mappings
     processed_by_key = {get_mapping_key(proc): proc for proc in all_mappings_processed}
 
-    # Update branches to use processed mappings by looking up each mapping by its key
-    # (don't use id() as it's not reliable across object copies)
     processed_branches = []
     for branch in branches:
-        processed_branch = []
-        for m in branch:
-            key = get_mapping_key(m)
-            if key in processed_by_key:
-                processed_branch.append(processed_by_key[key])
-            else:
-                logger.warning(f"Could not find processed mapping for {m.left_col} -> {m.right_col}")
-                processed_branch.append(m)
+        processed_branch = [processed_by_key.get(get_mapping_key(m), m) for m in branch]
         processed_branches.append(processed_branch)
 
-    # Collect all output column names for the final output order
     output_score_columns = [m.output_column_name for m in all_mappings_processed]
     output_order = (
         left_df_processed.collect_schema().names()
@@ -783,11 +764,9 @@ def fuzzy_match_dfs_with_context(
         + output_score_columns
     )
 
-    # Add index columns to both dataframes
     left_df_indexed = add_index_column(left_df_processed, "__left_index", temp_dir)
     right_df_indexed = add_index_column(right_df_processed, "__right_index", temp_dir)
 
-    # Process each branch
     branch_results = []
     for i, branch in enumerate(processed_branches):
         if len(processed_branches) > 1:
@@ -804,27 +783,20 @@ def fuzzy_match_dfs_with_context(
         )
         branch_results.append(branch_result)
 
-    # Combine branch results (OR logic)
     if len(branch_results) > 1:
         logger.info("Combining branch results (OR logic)")
         all_matches_df = combine_branch_results(branch_results)
     else:
         all_matches_df = branch_results[0]
 
-    # Join matches with original dataframes and return LazyFrame
     logger.info("Joining fuzzy matches with original dataframes")
-
-    # Build select list, handling potentially missing score columns
     result_lazy = left_df_indexed.join(all_matches_df, on="__left_index").join(
         right_df_indexed, on="__right_index"
     )
 
-    # Select only columns that exist (some score columns may be null for OR branches)
     available_cols = result_lazy.collect_schema().names()
     final_select = [col for col in output_order if col in available_cols]
-    result_lazy = result_lazy.select(final_select)
-
-    return result_lazy
+    return result_lazy.select(final_select)
 
 
 def fuzzy_match_dfs(

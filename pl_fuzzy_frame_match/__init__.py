@@ -2,9 +2,9 @@
 pl-fuzzy-match: Efficient Fuzzy Matching for Polars DataFrames.
 """
 
-from importlib.metadata import version, PackageNotFoundError
+from importlib.metadata import PackageNotFoundError, version
 
-from .matcher import fuzzy_match_dfs, fuzzy_match_dfs_with_context, fuzzy_match_temp_dir, FuzzyMapsInput
+from .matcher import FuzzyMapsInput, fuzzy_match_dfs, fuzzy_match_dfs_with_context, fuzzy_match_temp_dir
 from .models import FuzzyMapping, FuzzyMapExpr, FuzzyTypeLiteral, LogicalOp
 
 try:

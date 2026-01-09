@@ -761,7 +761,11 @@ def fuzzy_match_dfs_with_context(
 
     # Collect all output column names for the final output order
     output_score_columns = [m.output_column_name for m in all_mappings_processed]
-    output_order = left_df_processed.columns + right_df_processed.columns + output_score_columns
+    output_order = (
+        left_df_processed.collect_schema().names()
+        + right_df_processed.collect_schema().names()
+        + output_score_columns
+    )
 
     # Add index columns to both dataframes
     left_df_indexed = add_index_column(left_df_processed, "__left_index", temp_dir)

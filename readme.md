@@ -119,6 +119,51 @@ fuzzy_maps = [
 result = fuzzy_match_dfs(left_df, right_df, fuzzy_maps, logger)
 ```
 
+### AND/OR Logic with FuzzyMapExpr
+
+For complex matching scenarios, use `FuzzyMapExpr` to combine conditions with AND (`&`) and OR (`|`) operators - similar to Polars expressions:
+
+```python
+from pl_fuzzy_frame_match import FuzzyMapExpr, fuzzy_match_dfs
+
+# Define individual match conditions
+name_match = FuzzyMapExpr(
+    left_col="name",
+    right_col="customer_name",
+    threshold_score=85.0,
+    fuzzy_type="jaro_winkler"
+)
+
+city_match = FuzzyMapExpr(
+    left_col="city",
+    right_col="customer_city",
+    threshold_score=90.0
+)
+
+email_match = FuzzyMapExpr(
+    left_col="email",
+    right_col="customer_email",
+    threshold_score=95.0
+)
+
+# Combine with AND/OR logic:
+# Match if (name AND city match) OR (email matches perfectly)
+expr = (name_match & city_match) | email_match
+
+result = fuzzy_match_dfs(left_df, right_df, expr, logger)
+```
+
+**Key features:**
+- `&` (AND): Both conditions must match
+- `|` (OR): At least one condition must match
+- Operator precedence follows Python rules: `&` binds tighter than `|`
+- `a | b & c` evaluates as `a | (b & c)`
+
+**Use cases:**
+- **Address matching**: `(street & city & zip) | (street & city)` - match on full address or partial
+- **Identity resolution**: `(name & dob) | ssn | email` - match on multiple identity signals
+- **Flexible deduplication**: Define fallback matching strategies in a single expression
+
 ### Supported Algorithms
 
 - **levenshtein**: Edit distance between two strings

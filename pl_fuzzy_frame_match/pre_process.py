@@ -230,15 +230,15 @@ def get_rename_right_columns_to_ensure_no_overlap(
     if len(suffix) == 0:
         raise ValueError("Suffix must not be empty")
 
-    left_cols = set(left_df.columns)
-    right_cols = set(right_df.columns)
+    left_cols = set(left_df.collect_schema().names())
+    right_cols = set(right_df.collect_schema().names())
 
     # Track all column names that must be avoided
     reserved_names = left_cols.union(right_cols)
 
     renamed_mapping: dict[str, str] = {}
 
-    for col in right_df.columns:
+    for col in right_cols:
         if col not in left_cols:
             continue  # No conflict, no rename needed
 

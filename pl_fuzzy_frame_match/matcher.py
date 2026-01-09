@@ -2,7 +2,7 @@ import tempfile
 from collections.abc import Generator
 from contextlib import contextmanager
 from logging import Logger, getLogger
-from typing import cast, Union
+from typing import cast
 
 import polars as pl
 import polars_simed as ps
@@ -13,7 +13,7 @@ from .pre_process import pre_process_for_fuzzy_matching
 from .process import calculate_and_parse_fuzzy, process_fuzzy_frames
 
 # Type alias for fuzzy maps input
-FuzzyMapsInput = Union[list[FuzzyMapping], FuzzyMapExpr]
+FuzzyMapsInput = list[FuzzyMapping] | FuzzyMapExpr
 
 
 def ensure_left_is_larger(
@@ -761,20 +761,18 @@ def fuzzy_match_dfs_with_context(
     # Create lookup by key from processed mappings
     processed_by_key = {get_mapping_key(proc): proc for proc in all_mappings_processed}
 
-    # Map each original mapping to its processed version
-    original_to_processed = {}
-    for orig in all_mappings:
-        key = get_mapping_key(orig)
-        if key in processed_by_key:
-            original_to_processed[id(orig)] = processed_by_key[key]
-        else:
-            # Fallback: this shouldn't happen, but log a warning if it does
-            logger.warning(f"Could not find processed mapping for {orig.left_col} -> {orig.right_col}")
-
-    # Update branches to use processed mappings
+    # Update branches to use processed mappings by looking up each mapping by its key
+    # (don't use id() as it's not reliable across object copies)
     processed_branches = []
     for branch in branches:
-        processed_branch = [original_to_processed.get(id(m), m) for m in branch]
+        processed_branch = []
+        for m in branch:
+            key = get_mapping_key(m)
+            if key in processed_by_key:
+                processed_branch.append(processed_by_key[key])
+            else:
+                logger.warning(f"Could not find processed mapping for {m.left_col} -> {m.right_col}")
+                processed_branch.append(m)
         processed_branches.append(processed_branch)
 
     # Collect all output column names for the final output order

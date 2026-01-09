@@ -286,7 +286,18 @@ class TestFuzzyMatchWithExpr:
         assert len(result) >= 2  # At least Apple by name, Random by both
 
     def test_complex_or_expression(self, logger):
-        """Test complex expression: (A & B) | C."""
+        """Test complex expression: (A & B) | C.
+
+        This test verifies that preprocessing (which reorders mappings by uniqueness)
+        doesn't break the mapping between original and processed FuzzyMappings.
+
+        The expression (name & city) | email should:
+        - Apple (id=1): name matches but city doesn't (Cupertino vs San Jose) → NO MATCH
+        - Microsoft (id=2): name matches but city doesn't (Seattle vs Redmond) → NO MATCH
+        - Amazon (id=3): email matches perfectly → MATCH
+
+        Only Amazon should appear in results.
+        """
         left_df = pl.DataFrame({
             "id": [1, 2, 3],
             "name": ["Apple Inc", "Microsoft", "Amazon"],
@@ -316,9 +327,13 @@ class TestFuzzyMatchWithExpr:
         complex_expr = (name_expr & city_expr) | email_expr
         result = fuzzy_match_dfs(left_df.lazy(), right_df.lazy(), complex_expr, logger)
 
-        # At least Amazon should match via email
-        assert len(result) >= 1
-        assert any(row["id"] == 3 for row in result.to_dicts())
+        # Only Amazon (id=3) should match via email
+        assert len(result) == 1, f"Expected 1 match, got {len(result)}: {result.to_dicts()}"
+
+        result_ids = [row["id"] for row in result.to_dicts()]
+        assert 3 in result_ids, "Amazon (id=3) should match via email"
+        assert 1 not in result_ids, "Apple (id=1) should NOT match (name ok but city doesn't)"
+        assert 2 not in result_ids, "Microsoft (id=2) should NOT match (name ok but city doesn't)"
 
 
 class TestEdgeCases:

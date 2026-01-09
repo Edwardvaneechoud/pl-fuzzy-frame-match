@@ -751,12 +751,28 @@ def fuzzy_match_dfs_with_context(
 
     # Build a mapping from original to processed FuzzyMapping for each branch
     # This is needed because pre_process_for_fuzzy_matching may modify output_column_name
-    original_to_processed = {id(orig): proc for orig, proc in zip(all_mappings, all_mappings_processed)}
+    # and also REORDERS mappings by uniqueness, so we can't rely on order or id()
+    # Instead, we match by (left_col, threshold_score, fuzzy_type) which uniquely identifies a mapping
 
-    # Update branches to use processed mappings
+    def get_mapping_key(m: FuzzyMapping) -> tuple:
+        """Get a unique key for a FuzzyMapping based on its configuration."""
+        return (m.left_col, m.threshold_score, m.fuzzy_type)
+
+    # Create lookup by key from processed mappings
+    processed_by_key = {get_mapping_key(proc): proc for proc in all_mappings_processed}
+
+    # Update branches to use processed mappings by looking up each mapping by its key
+    # (don't use id() as it's not reliable across object copies)
     processed_branches = []
     for branch in branches:
-        processed_branch = [original_to_processed.get(id(m), m) for m in branch]
+        processed_branch = []
+        for m in branch:
+            key = get_mapping_key(m)
+            if key in processed_by_key:
+                processed_branch.append(processed_by_key[key])
+            else:
+                logger.warning(f"Could not find processed mapping for {m.left_col} -> {m.right_col}")
+                processed_branch.append(m)
         processed_branches.append(processed_branch)
 
     # Collect all output column names for the final output order

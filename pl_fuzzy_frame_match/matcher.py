@@ -2,7 +2,7 @@ import tempfile
 from collections.abc import Generator
 from contextlib import contextmanager
 from logging import Logger, getLogger
-from typing import cast, Union
+from typing import cast
 
 import polars as pl
 import polars_simed as ps
@@ -13,7 +13,7 @@ from .pre_process import pre_process_for_fuzzy_matching
 from .process import calculate_and_parse_fuzzy, process_fuzzy_frames
 
 # Type alias for fuzzy maps input
-FuzzyMapsInput = Union[list[FuzzyMapping], FuzzyMapExpr]
+FuzzyMapsInput = list[FuzzyMapping] | FuzzyMapExpr
 
 
 def ensure_left_is_larger(

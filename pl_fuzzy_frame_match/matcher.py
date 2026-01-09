@@ -759,9 +759,7 @@ def fuzzy_match_dfs_with_context(
 
     output_score_columns = [m.output_column_name for m in all_mappings_processed]
     output_order = (
-        left_df_processed.collect_schema().names()
-        + right_df_processed.collect_schema().names()
-        + output_score_columns
+        left_df_processed.collect_schema().names() + right_df_processed.collect_schema().names() + output_score_columns
     )
 
     left_df_indexed = add_index_column(left_df_processed, "__left_index", temp_dir)
@@ -790,9 +788,7 @@ def fuzzy_match_dfs_with_context(
         all_matches_df = branch_results[0]
 
     logger.info("Joining fuzzy matches with original dataframes")
-    result_lazy = left_df_indexed.join(all_matches_df, on="__left_index").join(
-        right_df_indexed, on="__right_index"
-    )
+    result_lazy = left_df_indexed.join(all_matches_df, on="__left_index").join(right_df_indexed, on="__right_index")
 
     available_cols = result_lazy.collect_schema().names()
     final_select = [col for col in output_order if col in available_cols]

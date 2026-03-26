@@ -7,7 +7,7 @@ High-performance fuzzy matching for Polars DataFrames that intelligently combine
 This library automatically selects the best matching strategy based on your data:
 
 - **Small datasets (< 100M comparisons)**: Uses exact fuzzy matching with full cross-join
-- **Large datasets (≥ 100M comparisons)**: Automatically switches to **approximate nearest neighbor joins** using `polars-sim`
+- **Large datasets (≥ 100M comparisons)**: Automatically switches to **approximate nearest neighbor joins** using `polars-simed`
 - **Intelligent optimization**: Pre-filters candidates using approximate methods, then applies exact fuzzy scoring
 
 This hybrid approach means you get:
@@ -184,7 +184,7 @@ The library intelligently combines two approaches based on your data size:
 4. **Filtering**: Returns only matches above the threshold
 
 ### For Large Datasets (≥ 100M potential matches)
-1. **Approximate Candidate Selection**: Uses `polars-sim` to quickly find likely matches
+1. **Approximate Candidate Selection**: Uses `polars-simed` to quickly find likely matches
 2. **Chunked Processing**: Processes large datasets in memory-efficient chunks
 3. **Reduced Comparisons**: Only scores the most promising pairs instead of all combinations
 4. **Final Scoring**: Applies exact fuzzy matching to the reduced candidate set
@@ -192,7 +192,7 @@ The library intelligently combines two approaches based on your data size:
 ### The Magic: Automatic Strategy Selection
 ```python
 # The library automatically determines the best approach:
-if cartesian_product_size >= 100_000_000 and has_polars_sim:
+if cartesian_product_size >= 100_000_000 and has_polars_simed:
     # Use approximate join for initial candidate selection
     # This reduces a 1B comparison problem to ~1M comparisons
     use_approximate_matching()
@@ -205,9 +205,9 @@ This means you can use the same API whether matching 1,000 or 100 million record
 
 ## Performance Tips
 
-- **Large dataset matching**: Install `polars-sim` to enable approximate matching:
+- **Large dataset matching**: Install `polars-simed` to enable approximate matching:
   ```bash
-  pip install polars-sim
+  pip install polars-simed
   ```
 - **Optimal threshold**: Start with higher thresholds (80-90%) for better performance
 - **Column selection**: Use columns with high uniqueness for better candidate reduction
@@ -222,7 +222,7 @@ This means you can use the same API whether matching 1,000 or 100 million record
 - Python >= 3.9
 - Polars >= 1.8.2
 - polars-distance ~= 0.4.3
-- polars-sim >= 0.4.1 (optional, for large datasets)
+- polars-simed >= 0.4.0 (optional, for large datasets)
 
 ## License
 

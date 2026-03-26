@@ -23,7 +23,7 @@ For optimal performance with large datasets (>100M potential matches), install w
 
 .. code-block:: bash
 
-    pip install pl-fuzzy-frame-match polars-sim
+    pip install pl-fuzzy-frame-match polars-simed
 
 Requirements
 ------------
@@ -31,7 +31,7 @@ Requirements
 * Python >= 3.9
 * Polars >= 1.8.2
 * polars-distance ~= 0.4.3
-* polars-sim >= 0.4.1 (optional, for large datasets)
+* polars-simed >= 0.4.0 (optional, for large datasets)
 
 Verify Installation
 -------------------

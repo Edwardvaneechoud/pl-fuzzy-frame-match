@@ -5,7 +5,13 @@ from logging import Logger, getLogger
 from typing import cast
 
 import polars as pl
-import polars_sim as ps
+
+try:
+    import polars_sim as ps
+
+    HAS_POLARS_SIM = True
+except ImportError:
+    HAS_POLARS_SIM = False
 
 from ._utils import cache_polars_frame_to_temp, collect_lazy_frame
 from .models import FuzzyMapExpr, FuzzyMapping
@@ -325,9 +331,16 @@ def cross_join_no_existing_fuzzy_results(
     if cartesian_size > max_size:
         logger.error(f"The cartesian product of the two dataframes is too large to process: {cartesian_size}")
         raise Exception("The cartesian product of the two dataframes is too large to process.")
-    if (
+    should_use_approx = (
         cartesian_size > cross_over_for_appr_nearest_neighbor and use_appr_nearest_neighbor is None
-    ) or use_appr_nearest_neighbor:
+    ) or use_appr_nearest_neighbor
+    if should_use_approx and not HAS_POLARS_SIM:
+        logger.warning(
+            "Approximate nearest neighbor requested but polars-sim is not installed. "
+            "Falling back to standard cross join. Install polars-sim for large dataset support."
+        )
+        should_use_approx = False
+    if should_use_approx:
         logger.info("Performing approximate fuzzy match for large dataframes to reduce memory usage.")
         cross_join_frame = cross_join_large_files(
             left_fuzzy_frame,

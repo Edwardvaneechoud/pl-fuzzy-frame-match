@@ -29,9 +29,9 @@ Requirements
 ------------
 
 * Python >= 3.9
-* Polars >= 1.8.2, < 2.0.0
+* Polars >= 1.8.2
 * polars-distance ~= 0.4.3
-* polars-simed >= 0.3.4 (optional, for large datasets)
+* polars-simed >= 0.4.0 (optional, for large datasets)
 
 Verify Installation
 -------------------

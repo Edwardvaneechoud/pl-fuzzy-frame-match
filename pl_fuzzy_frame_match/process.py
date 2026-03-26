@@ -150,6 +150,6 @@ def calculate_and_parse_fuzzy(
     return (
         calculate_fuzzy_score(mapping_table, left_col_name, right_col_name, fuzzy_method, th_score)
         .select(pl.col("s"), pl.col("__left_index"), pl.col("__right_index"))
-        .explode(pl.col("__left_index"))
-        .explode(pl.col("__right_index"))
+        .explode("__left_index")
+        .explode("__right_index")
     )

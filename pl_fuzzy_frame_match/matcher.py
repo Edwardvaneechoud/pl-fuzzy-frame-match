@@ -300,7 +300,7 @@ def cross_join_no_existing_fuzzy_results(
     1. Processes input frames using the process_fuzzy_frames helper function.
     2. Calculates the size of the cartesian product to determine processing approach.
     3. Uses either cross_join_large_files or cross_join_small_files based on the size:
-       - For cartesian products > 100M but < 1T (or 10M without polars-sim), uses large file method.
+       - For cartesian products > 100M but < 1T (or 10M without polars-simed), uses large file method.
        - For smaller products, uses the small file method.
     4. Raises an exception if the cartesian product exceeds the maximum allowed size.
 
@@ -308,7 +308,7 @@ def cross_join_no_existing_fuzzy_results(
     ------
     Exception
         If the cartesian product of the two dataframes exceeds the maximum allowed size
-        (1 trillion with polars-sim, 100 million without).
+        (1 trillion with polars-simed, 100 million without).
 
     """
     (left_fuzzy_frame, right_fuzzy_frame, left_col_name, right_col_name, len_left_df, len_right_df) = (

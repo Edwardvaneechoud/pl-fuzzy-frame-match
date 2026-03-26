@@ -5,7 +5,7 @@ from logging import Logger, getLogger
 from typing import cast
 
 import polars as pl
-import polars_simeded as ps
+import polars_simed as ps
 
 from ._utils import cache_polars_frame_to_temp, collect_lazy_frame
 from .models import FuzzyMapExpr, FuzzyMapping

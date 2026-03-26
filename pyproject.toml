@@ -30,7 +30,7 @@ packages = [{include = "pl_fuzzy_frame_match"}]
 python = "^3.10"
 polars = ">=1.8.2"
 polars-distance = "~0.4.3"
-polars-sim = "^0.4.1"
+polars-sim = {version = "^0.4.1", python = ">=3.10,<3.14"}
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.0.0"

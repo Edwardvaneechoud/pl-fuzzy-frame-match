@@ -42,7 +42,7 @@ def run_test_scenario(
     if use_approx_join_strategy is True:
         logger.info(
             f"Scenario '{scenario_name}': Explicitly requesting approximate join. "
-            "The library will attempt this; ensure polars_simed is (or the equivalent approximate matching tool is) installed and configured in your library for success."
+            "The library will attempt this; ensure polars_sim is (or the equivalent approximate matching tool is) installed and configured in your library for success."
         )
     elif use_approx_join_strategy is False:
         logger.info(f"Scenario '{scenario_name}': Explicitly requesting standard cross join.")
@@ -98,7 +98,7 @@ if __name__ == "__main__":
 
     logger.info(
         "Performance test started. The library's internal logic will determine if approximate "
-        "matching tools (like polars-simed) are used based on the 'use_appr_nearest_neighbor_for_new_matches' parameter."
+        "matching tools (like polars-sim) are used based on the 'use_appr_nearest_neighbor_for_new_matches' parameter."
     )
 
     for config in dataset_configurations:
@@ -160,7 +160,7 @@ if __name__ == "__main__":
     print(
         "  - 'Force Approximate Join':    Corresponds to 'use_appr_nearest_neighbor_for_new_matches=True' in the library.")
     print(
-        "                                 Aims to use approximate nearest neighbor methods (e.g., polars-simed if available).")
+        "                                 Aims to use approximate nearest neighbor methods (e.g., polars-sim if available).")
     print(
         "  - 'Force Standard Cross Join': Corresponds to 'use_appr_nearest_neighbor_for_new_matches=False' in the library.")
     print("                                 Forces a standard, full cross join.")
@@ -168,7 +168,7 @@ if __name__ == "__main__":
         "  - 'Automatic Join Selection':  Corresponds to 'use_appr_nearest_neighbor_for_new_matches=None' in the library.")
     print(
         "                                 The library automatically selects the join strategy based on its internal logic")
-    print("                                 (e.g., data size and availability of tools like polars-simed).\n")
+    print("                                 (e.g., data size and availability of tools like polars-sim).\n")
 
     # Adjusted column widths for better fit and clarity
     # Scenario name can be long, e.g., "XX-Large - Force Approximate Join" is ~35 chars

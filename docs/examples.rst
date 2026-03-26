@@ -176,7 +176,7 @@ You can explicitly control the join strategy:
 
 .. code-block:: python
 
-    # Force approximate matching (requires polars-simed)
+    # Force approximate matching (requires polars-sim)
     result = fuzzy_match_dfs(
         left_df, right_df, fuzzy_maps, logger,
         use_appr_nearest_neighbor_for_new_matches=True

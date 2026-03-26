@@ -5,7 +5,7 @@ from logging import Logger, getLogger
 from typing import cast
 
 import polars as pl
-import polars_simed as ps
+import polars_sim as ps
 
 from ._utils import cache_polars_frame_to_temp, collect_lazy_frame
 from .models import FuzzyMapExpr, FuzzyMapping
@@ -107,7 +107,7 @@ def cross_join_large_files(
     top_n: int = 500,
 ) -> pl.LazyFrame:
     """
-    Perform approximate similarity joins on large datasets using polars-simed.
+    Perform approximate similarity joins on large datasets using polars-sim.
 
     This function handles fuzzy matching for large datasets by using approximate
     nearest neighbor techniques to reduce the computational complexity from O(n*m)
@@ -126,7 +126,7 @@ def cross_join_large_files(
                      Returns an empty DataFrame with null schema if no matches found.
 
     Notes:
-        - Requires polars-simed library for approximate matching functionality
+        - Requires polars-sim library for approximate matching functionality
         - Automatically ensures larger dataframe is used as the left frame for optimization
         - Processes left dataframe in chunks of 500,000 rows to manage memory
         - Combines results from all chunks into a single output
@@ -272,11 +272,11 @@ def cross_join_no_existing_fuzzy_results(
         Reference to a temporary directory where intermediate results can be stored
         during processing of large dataframes.
     use_appr_nearest_neighbor : bool | None
-        If True, forces the use of approximate nearest neighbor join (polars_simed) if available.
+        If True, forces the use of approximate nearest neighbor join (polars_sim) if available.
         If False, forces the use of a standard cross join.
         If None (default), an automatic selection based on cartesian_size is done.
     top_n : int, optional
-        When using approximate nearest neighbor (`polars-simed`), this parameter specifies the
+        When using approximate nearest neighbor (`polars-sim`), this parameter specifies the
         maximum number of most similar items to return for each item during the pre-filtering
         stage. It helps control the size of the candidate set for more detailed fuzzy matching.
         Defaults to 500.

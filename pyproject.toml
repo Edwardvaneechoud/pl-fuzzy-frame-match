@@ -47,11 +47,6 @@ numpy = [
     {version = ">=2.3.2", python = ">=3.11"},
     {version = ">=1.26,<2.3", python = "<3.11"},
 ]
-# polars 2.1 needs Python 3.11+; split so CI tests 2.1 where it can instead of 2.0 everywhere
-polars = [
-    {version = ">=2.1.0", python = ">=3.11"},
-    {version = ">=2.0.0,<2.1", python = "<3.11"},
-]
 
 [tool.poetry.group.docs.dependencies]
 sphinx = "^7.3.0"

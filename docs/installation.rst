@@ -19,19 +19,16 @@ Or using Poetry:
 Installation for Large Datasets
 -------------------------------
 
-For optimal performance with large datasets (>100M potential matches), install with approximate matching support:
-
-.. code-block:: bash
-
-    pip install pl-fuzzy-frame-match polars-simed
+Approximate matching support (``polars-simed``) is installed with the package. It is used automatically
+for large datasets (>100M potential matches), so no extra install step is needed.
 
 Requirements
 ------------
 
-* Python >= 3.9
-* Polars >= 1.8.2
+* Python >= 3.10
+* Polars >= 1.39.0 (including 2.x)
 * polars-distance >= 0.5.3, < 0.6
-* polars-simed >= 0.4.0 (optional, for large datasets)
+* polars-simed >= 0.4.0
 
 Verify Installation
 -------------------

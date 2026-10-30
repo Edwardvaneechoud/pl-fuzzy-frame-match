@@ -217,7 +217,7 @@ This means you can use the same API whether matching 1,000 or 100 million record
 ## Requirements
 
 - Python >= 3.10
-- Polars >= 1.39.0 (including 2.x)
+- Polars >= 2.0.0
 - polars-distance >= 0.5.3, < 0.6
 - polars-simed >= 0.4.0
 

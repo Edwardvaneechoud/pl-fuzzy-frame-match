@@ -25,12 +25,13 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
-        python-version: ["3.10", "3.11", "3.12"]
+        python-version: ["3.10", "3.11", "3.12", "3.13", "3.14"]
 
     steps:
       - uses: actions/checkout@v4
 
       - name: Set up Python ${{ matrix.python-version }}
+        id: setup-python
         uses: actions/setup-python@v4
         with:
           python-version: ${{ matrix.python-version }}
@@ -46,7 +47,7 @@ jobs:
         uses: actions/cache@v3
         with:
           path: .venv
-          key: venv-${{ matrix.os }}-${{ matrix.python-version }}-${{ hashFiles('**/poetry.lock') }}
+          key: venv-${{ matrix.os }}-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('pyproject.toml') }}
 
       - name: Install dependencies
         run: poetry install --no-interaction --no-ansi
@@ -57,6 +58,16 @@ jobs:
         run: poetry run pre-commit run --all-files
         # No shell change needed, as it's ubuntu-only and default is bash.
         # If it were to run on Windows and fail, add shell: bash here too.
+
+      # Poetry resolves one polars for the whole ^3.10 range (2.0.x); polars 2.1+ needs Python 3.11+
+      - name: Upgrade to latest Polars where supported
+        if: matrix.python-version != '3.10'
+        run: poetry run pip install --upgrade "polars>=2.1"
+        shell: bash
+
+      - name: Show Polars version
+        run: poetry run python -c "import polars; print('polars', polars.__version__)"
+        shell: bash
 
       - name: Run tests with coverage
         run: poetry run pytest --cov=pl_fuzzy_frame_match --cov-report=xml --cov-report=term-missing -v

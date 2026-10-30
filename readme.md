@@ -205,10 +205,7 @@ This means you can use the same API whether matching 1,000 or 100 million record
 
 ## Performance Tips
 
-- **Large dataset matching**: Install `polars-simed` to enable approximate matching:
-  ```bash
-  pip install polars-simed
-  ```
+- **Large dataset matching**: Approximate matching via `polars-simed` is installed with the package and switches on automatically for large datasets
 - **Optimal threshold**: Start with higher thresholds (80-90%) for better performance
 - **Column selection**: Use columns with high uniqueness for better candidate reduction
 - **Algorithm choice**:
@@ -219,10 +216,10 @@ This means you can use the same API whether matching 1,000 or 100 million record
 
 ## Requirements
 
-- Python >= 3.9
-- Polars >= 1.8.2
-- polars-distance ~= 0.4.3
-- polars-simed >= 0.4.0 (optional, for large datasets)
+- Python >= 3.10
+- Polars >= 2.0.0
+- polars-distance >= 0.5.3, < 0.6
+- polars-simed >= 0.4.0
 
 ## License
 

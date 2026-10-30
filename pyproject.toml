@@ -4,7 +4,7 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.poetry]
 name = "pl-fuzzy-frame-match"
-version = "0.6.0"
+version = "0.7.0"
 description = "Efficient fuzzy matching for Polars DataFrames with support for multiple string similarity algorithms"
 authors = ["Edward van Eechoud <evaneechoud@gmail.com>"]
 license = "MIT"
@@ -21,6 +21,8 @@ classifiers = [
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
     "Topic :: Software Development :: Libraries :: Python Modules",
     "Topic :: Scientific/Engineering :: Information Analysis",
 ]
@@ -28,8 +30,8 @@ packages = [{include = "pl_fuzzy_frame_match"}]
 
 [tool.poetry.dependencies]
 python = "^3.10"
-polars = ">=1.8.2"
-polars-distance = "~0.4.3"
+polars = ">=2.0.0"
+polars-distance = ">=0.5.3,<0.6"
 polars-simed = "^0.4.0"
 pyarrow = ">=12.0.0"
 
@@ -40,6 +42,11 @@ black = "^24.0.0"
 ruff = "^0.6.0"
 mypy = "^1.11.0"
 pre-commit = "^3.8.0"
+# numpy 2.2.x has no cp314 wheels; split the pin so 3.14 CI gets a prebuilt wheel
+numpy = [
+    {version = ">=2.3.2", python = ">=3.11"},
+    {version = ">=1.26,<2.3", python = "<3.11"},
+]
 
 [tool.poetry.group.docs.dependencies]
 sphinx = "^7.3.0"

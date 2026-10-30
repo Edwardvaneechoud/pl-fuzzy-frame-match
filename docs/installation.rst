@@ -30,7 +30,7 @@ Requirements
 
 * Python >= 3.9
 * Polars >= 1.8.2
-* polars-distance ~= 0.4.3
+* polars-distance >= 0.5.3, < 0.6
 * polars-simed >= 0.4.0 (optional, for large datasets)
 
 Verify Installation

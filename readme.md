@@ -221,7 +221,7 @@ This means you can use the same API whether matching 1,000 or 100 million record
 
 - Python >= 3.9
 - Polars >= 1.8.2
-- polars-distance ~= 0.4.3
+- polars-distance >= 0.5.3, < 0.6
 - polars-simed >= 0.4.0 (optional, for large datasets)
 
 ## License
